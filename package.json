@@ -13,7 +13,7 @@
   "homepage": "https://github.com/francozeta/xepha#readme",
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev",
+    "dev": "turbo run dev --filter=@xepha/api --filter=@xepha/playground --filter=@xepha/website",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "format": "prettier --write \"**/*.{ts,tsx,md,json,yml,yaml,css}\"",

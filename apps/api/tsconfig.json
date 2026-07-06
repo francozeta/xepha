@@ -1,0 +1,10 @@
+{
+  "extends": "@xepha/typescript-config/node-library.json",
+  "compilerOptions": {
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "noEmit": true,
+    "rootDir": "src"
+  },
+  "include": ["src/**/*.ts"]
+}

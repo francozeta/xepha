@@ -1,0 +1,31 @@
+{
+  "name": "@xepha/api",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "pnpm --filter @xepha/core build && tsc -p tsconfig.build.json",
+    "dev": "pnpm --filter @xepha/core build && tsx watch src/main.ts",
+    "start": "node dist/main.js",
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.9",
+    "@nestjs/core": "^11.1.9",
+    "@nestjs/platform-express": "^11.1.9",
+    "@xepha/core": "workspace:*",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@xepha/eslint-config": "workspace:*",
+    "@xepha/typescript-config": "workspace:*",
+    "@types/node": "^22.15.3",
+    "eslint": "^9.39.1",
+    "tsx": "^4.21.0",
+    "typescript": "5.9.2",
+    "vitest": "^4.0.15"
+  }
+}

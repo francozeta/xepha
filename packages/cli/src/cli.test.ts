@@ -146,6 +146,27 @@ describe("CLI local loop", () => {
         "--limit",
         "1",
       ]);
+      const explainedContext = await runCli(workspacePath, [
+        "context",
+        "continue runtime work",
+        "--db",
+        dbPath,
+        "--format",
+        "yaml",
+        "--limit",
+        "1",
+        "--explain",
+      ]);
+      const zeroLimitContext = await runCli(workspacePath, [
+        "context",
+        "continue runtime work",
+        "--db",
+        dbPath,
+        "--format",
+        "yaml",
+        "--limit",
+        "0",
+      ]);
 
       expect(ingest.stdout).toContain("Ingested 2 event");
       expect(events.stdout).toContain("feat: add runtime notes");
@@ -156,6 +177,14 @@ describe("CLI local loop", () => {
       expect(context.stdout).toContain('title: "feat: add runtime notes"');
       expect(context.stdout).not.toContain('title: "docs: add website notes"');
       expect(context.stdout).toContain(`uri: git+file://`);
+      expect(explainedContext.stdout).toContain("version: xepha.context.v0");
+      expect(explainedContext.stdout).not.toContain("Selected git:");
+      expect(explainedContext.stderr).toContain(`Selected git:${hash}`);
+      expect(explainedContext.stderr).toContain("matched title: runtime");
+      expect(zeroLimitContext.stdout).not.toContain(
+        "No events found in the local store.",
+      );
+      expect(zeroLimitContext.stdout).toContain("confidence: 1");
     });
   }, 20_000);
 

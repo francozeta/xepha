@@ -9,6 +9,7 @@ pnpm xepha doctor
 pnpm xepha ingest git --repo . --db .xepha/knowledge.db --limit 20
 pnpm xepha events list --db .xepha/knowledge.db
 pnpm xepha context "continue the current work" --db .xepha/knowledge.db --format yaml
+pnpm xepha context "continue the current work" --db .xepha/knowledge.db --explain
 ```
 
 The `pnpm xepha` script builds the CLI package and its local dependencies before
@@ -23,4 +24,5 @@ pnpm xepha context "resume the project" --db C:/path/to/project/.xepha/knowledge
 ```
 
 The CLI is still experimental. It currently supports git commit ingest, local
-SQLite storage, event listing, simple event ranking, and context pack rendering.
+SQLite storage, event listing, simple event ranking, ranking explanations, and
+context pack rendering.

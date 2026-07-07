@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defineKnowledgeEvent } from "@xepha/core";
-import { rankEventsForTask } from "./index.js";
+import { explainRankedEventsForTask, rankEventsForTask } from "./index.js";
 
 const storageDecision = defineKnowledgeEvent({
   id: "evt_storage",
@@ -71,5 +71,53 @@ describe("rankEventsForTask", () => {
       "evt_protocol",
       "evt_storage",
     ]);
+  });
+});
+
+describe("explainRankedEventsForTask", () => {
+  it("returns ranking scores and match reasons", () => {
+    const ranked = explainRankedEventsForTask({
+      task: "continue sqlite storage work",
+      events: [uiUpdate, storageDecision],
+    });
+
+    expect(ranked[0]).toMatchObject({
+      event: storageDecision,
+      reasons: expect.arrayContaining([
+        "matched tag: sqlite",
+        "matched tag: storage",
+        "matched title: sqlite",
+      ]),
+    });
+    expect(ranked[0]?.score).toBeGreaterThan(ranked[1]?.score ?? 0);
+    expect(ranked[1]?.reasons).toEqual(["recency fallback"]);
+  });
+
+  it("explains relation boosts from directly matched events", () => {
+    const ranked = explainRankedEventsForTask({
+      task: "continue sqlite storage work",
+      events: [uiUpdate, protocolDecision, storageDecision],
+      relations: [
+        {
+          from: "evt_storage",
+          to: "evt_protocol",
+          kind: "supports",
+          reason: "Protocol output depends on local memory.",
+        },
+      ],
+    });
+
+    expect(ranked.map((item) => item.event.id)).toEqual([
+      "evt_storage",
+      "evt_protocol",
+      "evt_ui",
+    ]);
+    expect(ranked[1]).toMatchObject({
+      event: protocolDecision,
+      reasons: [
+        "related to matched event evt_storage: Protocol output depends on local memory.",
+      ],
+      score: 3,
+    });
   });
 });

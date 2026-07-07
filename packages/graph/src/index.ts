@@ -15,11 +15,28 @@ export interface RankEventsForTaskInput {
   readonly relations?: readonly KnowledgeEdge[];
 }
 
+export interface RankedKnowledgeEvent {
+  readonly event: KnowledgeEvent;
+  readonly reasons: readonly string[];
+  readonly score: number;
+}
+
 interface EventScore {
   readonly event: KnowledgeEvent;
   readonly matched: boolean;
+  readonly reasons: readonly string[];
   readonly relationBoost: number;
   readonly textScore: number;
+}
+
+interface RelationBoost {
+  readonly reasons: readonly string[];
+  readonly score: number;
+}
+
+interface ScoreBreakdown {
+  readonly reasons: readonly string[];
+  readonly score: number;
 }
 
 const TOKEN_MIN_LENGTH = 2;
@@ -59,31 +76,53 @@ export function linkEventsBySharedTags(
 export function rankEventsForTask(
   input: RankEventsForTaskInput,
 ): readonly KnowledgeEvent[] {
+  return explainRankedEventsForTask(input).map((score) => score.event);
+}
+
+export function explainRankedEventsForTask(
+  input: RankEventsForTaskInput,
+): readonly RankedKnowledgeEvent[] {
   const taskTokens = tokenize(input.task);
   const baseScores = input.events.map((event) => scoreEvent(event, taskTokens));
   const directlyMatchedIds = new Set(
     baseScores.filter((score) => score.matched).map((score) => score.event.id),
   );
   const relationBoosts = getRelationBoosts(input.relations ?? [], directlyMatchedIds);
-  const scoredEvents = baseScores.map((score) => ({
-    ...score,
-    relationBoost: relationBoosts.get(score.event.id) ?? 0,
-  }));
+  const scoredEvents = baseScores.map((score) => {
+    const relationBoost = relationBoosts.get(score.event.id);
+    const reasons = [...score.reasons, ...(relationBoost?.reasons ?? [])];
+
+    return {
+      ...score,
+      reasons: reasons.length > 0 ? reasons : ["recency fallback"],
+      relationBoost: relationBoost?.score ?? 0,
+    };
+  });
 
   return [...scoredEvents]
     .sort((left, right) => compareScores(left, right))
-    .map((score) => score.event);
+    .map((score) => ({
+      event: score.event,
+      reasons: score.reasons,
+      score: score.textScore + score.relationBoost,
+    }));
 }
 
 function scoreEvent(event: KnowledgeEvent, taskTokens: readonly string[]): EventScore {
-  const textScore =
-    scoreTags(event.tags, taskTokens) +
-    scoreText(event.title, taskTokens, TITLE_MATCH_WEIGHT) +
-    scoreText(event.summary, taskTokens, SUMMARY_MATCH_WEIGHT);
+  const tagScore = scoreTags(event.tags, taskTokens);
+  const titleScore = scoreText("title", event.title, taskTokens, TITLE_MATCH_WEIGHT);
+  const summaryScore = scoreText(
+    "summary",
+    event.summary,
+    taskTokens,
+    SUMMARY_MATCH_WEIGHT,
+  );
+  const textScore = tagScore.score + titleScore.score + summaryScore.score;
 
   return {
     event,
     matched: textScore > 0,
+    reasons: [...tagScore.reasons, ...titleScore.reasons, ...summaryScore.reasons],
     relationBoost: 0,
     textScore,
   };
@@ -110,45 +149,77 @@ function compareScores(left: EventScore, right: EventScore): number {
 function getRelationBoosts(
   relations: readonly KnowledgeEdge[],
   directlyMatchedIds: ReadonlySet<string>,
-): Map<string, number> {
-  const boosts = new Map<string, number>();
+): Map<string, RelationBoost> {
+  const boosts = new Map<string, RelationBoost>();
 
   for (const relation of relations) {
     if (directlyMatchedIds.has(relation.from) && !directlyMatchedIds.has(relation.to)) {
-      boosts.set(
-        relation.to,
-        Math.max(boosts.get(relation.to) ?? 0, RELATION_BOOST_WEIGHT),
-      );
+      addRelationBoost(boosts, relation.to, relation.from, relation);
     }
 
     if (directlyMatchedIds.has(relation.to) && !directlyMatchedIds.has(relation.from)) {
-      boosts.set(
-        relation.from,
-        Math.max(boosts.get(relation.from) ?? 0, RELATION_BOOST_WEIGHT),
-      );
+      addRelationBoost(boosts, relation.from, relation.to, relation);
     }
   }
 
   return boosts;
 }
 
-function scoreTags(tags: readonly string[], taskTokens: readonly string[]): number {
+function addRelationBoost(
+  boosts: Map<string, RelationBoost>,
+  targetEventId: string,
+  matchedEventId: string,
+  relation: KnowledgeEdge,
+): void {
+  const reason = `related to matched event ${matchedEventId}: ${relation.reason}`;
+  const existing = boosts.get(targetEventId);
+
+  boosts.set(targetEventId, {
+    reasons: existing ? [...existing.reasons, reason] : [reason],
+    score: Math.max(existing?.score ?? 0, RELATION_BOOST_WEIGHT),
+  });
+}
+
+function scoreTags(
+  tags: readonly string[],
+  taskTokens: readonly string[],
+): ScoreBreakdown {
   const normalizedTags = tags.flatMap((tag) => tokenize(tag));
   const tagSet = new Set(normalizedTags);
 
-  return taskTokens.reduce(
-    (score, token) => score + (tagSet.has(token) ? TAG_MATCH_WEIGHT : 0),
-    0,
-  );
+  return scoreTokenMatches("tag", tagSet, taskTokens, TAG_MATCH_WEIGHT);
 }
 
-function scoreText(text: string, taskTokens: readonly string[], weight: number): number {
+function scoreText(
+  label: "summary" | "title",
+  text: string,
+  taskTokens: readonly string[],
+  weight: number,
+): ScoreBreakdown {
   const textTokens = new Set(tokenize(text));
 
-  return taskTokens.reduce(
-    (score, token) => score + (textTokens.has(token) ? weight : 0),
-    0,
-  );
+  return scoreTokenMatches(label, textTokens, taskTokens, weight);
+}
+
+function scoreTokenMatches(
+  label: "summary" | "tag" | "title",
+  sourceTokens: ReadonlySet<string>,
+  taskTokens: readonly string[],
+  weight: number,
+): ScoreBreakdown {
+  let score = 0;
+  const reasons: string[] = [];
+
+  for (const token of taskTokens) {
+    if (!sourceTokens.has(token)) {
+      continue;
+    }
+
+    score += weight;
+    reasons.push(`matched ${label}: ${token}`);
+  }
+
+  return { reasons, score };
 }
 
 function tokenize(value: string): readonly string[] {

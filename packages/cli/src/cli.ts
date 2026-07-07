@@ -3,7 +3,7 @@ import { dirname, isAbsolute, resolve } from "node:path";
 import { Command } from "commander";
 import { GitCommitAdapter } from "@xepha/adapters";
 import { XEPHA_PROJECT, type KnowledgeEvent } from "@xepha/core";
-import { rankEventsForTask } from "@xepha/graph";
+import { explainRankedEventsForTask, type RankedKnowledgeEvent } from "@xepha/graph";
 import { SQLiteKnowledgeStore } from "@xepha/memory";
 import { createContextPackV0, stringifyContextPackYaml } from "@xepha/protocol";
 
@@ -31,6 +31,7 @@ interface GitIngestOptions extends DatabaseOptions {
 }
 
 interface ContextOptions extends DatabaseOptions {
+  readonly explain?: boolean;
   readonly format: "json" | "yaml";
   readonly limit: number;
 }
@@ -130,23 +131,31 @@ export function createCliProgram(options: CreateCliProgramOptions = {}): Command
       parseNonNegativeInteger,
       DEFAULT_CONTEXT_LIMIT,
     )
+    .option("--explain", "Write ranking reasons to stderr.")
     .action(async (task: string, commandOptions: ContextOptions) => {
       await withStore(cwd, commandOptions.db, async (store) => {
         const storedEvents = await store.list();
         const relations = await store.listRelations();
-        const rankedEvents = rankEventsForTask({
+        const rankedEvents = explainRankedEventsForTask({
           task,
           events: storedEvents,
           relations,
         });
+        const selectedEvents = rankedEvents
+          .slice(0, commandOptions.limit)
+          .map((score) => score.event);
         const pack = createContextPackV0({
           task,
-          events: rankedEvents,
+          events: selectedEvents,
           limit: commandOptions.limit,
           confidence: rankedEvents.length === 0 ? 0 : 1,
           warnings:
             rankedEvents.length === 0 ? ["No events found in the local store."] : [],
         });
+
+        if (commandOptions.explain) {
+          writeContextExplanation(stderr, rankedEvents, commandOptions.limit);
+        }
 
         if (commandOptions.format === "json") {
           stdout.write(`${JSON.stringify(pack, null, 2)}\n`);
@@ -204,6 +213,20 @@ function resolveFromCwd(cwd: string, path: string): string {
 
 function formatEventLine(event: KnowledgeEvent): string {
   return `${event.occurredAt} ${event.kind} ${event.id} ${event.title}\n`;
+}
+
+function writeContextExplanation(
+  stderr: CliWritable,
+  rankedEvents: readonly RankedKnowledgeEvent[],
+  limit: number,
+): void {
+  const selectedEvents = rankedEvents.slice(0, limit);
+
+  for (const rankedEvent of selectedEvents) {
+    stderr.write(
+      `Selected ${rankedEvent.event.id} (score ${rankedEvent.score}): ${rankedEvent.reasons.join("; ")}\n`,
+    );
+  }
 }
 
 function parseNonNegativeInteger(value: string): number {

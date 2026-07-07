@@ -19,12 +19,14 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@xepha/core": "workspace:*"
+    "@libsql/client": "0.17.4",
+    "@xepha/core": "workspace:*",
+    "drizzle-orm": "0.45.2"
   },
   "devDependencies": {
+    "@types/node": "^22.15.3",
     "@xepha/eslint-config": "workspace:*",
     "@xepha/typescript-config": "workspace:*",
-    "@types/node": "^22.15.3",
     "eslint": "^9.39.1",
     "typescript": "5.9.2",
     "vitest": "^4.0.15"

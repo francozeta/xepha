@@ -21,6 +21,9 @@ coverage
 # Vercel
 .vercel
 
+# Xepha local data
+.xepha/
+
 # Build Outputs
 .next/
 out/

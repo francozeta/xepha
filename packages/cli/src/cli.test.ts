@@ -117,6 +117,13 @@ describe("CLI local loop", () => {
         "feat: add runtime notes",
         "2026-07-06T13:00:00.000Z",
       );
+      await commitFile(
+        repoPath,
+        "docs/website.md",
+        "Coming soon.\n",
+        "docs: add website notes",
+        "2026-07-07T13:00:00.000Z",
+      );
 
       const ingest = await runCli(workspacePath, [
         "ingest",
@@ -126,7 +133,7 @@ describe("CLI local loop", () => {
         "--db",
         dbPath,
         "--limit",
-        "1",
+        "2",
       ]);
       const events = await runCli(workspacePath, ["events", "list", "--db", dbPath]);
       const context = await runCli(workspacePath, [
@@ -136,15 +143,18 @@ describe("CLI local loop", () => {
         dbPath,
         "--format",
         "yaml",
+        "--limit",
+        "1",
       ]);
 
-      expect(ingest.stdout).toContain("Ingested 1 event");
+      expect(ingest.stdout).toContain("Ingested 2 event");
       expect(events.stdout).toContain("feat: add runtime notes");
       expect(events.stdout).toContain(`git:${hash}`);
       expect(context.stderr).toBe("");
       expect(context.stdout).toContain("version: xepha.context.v0");
       expect(context.stdout).toContain("task: continue runtime work");
       expect(context.stdout).toContain('title: "feat: add runtime notes"');
+      expect(context.stdout).not.toContain('title: "docs: add website notes"');
       expect(context.stdout).toContain(`uri: git+file://`);
     });
   }, 20_000);

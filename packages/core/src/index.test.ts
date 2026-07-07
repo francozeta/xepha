@@ -1,5 +1,10 @@
+import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { defineKnowledgeEvent } from "./index.js";
+import { defineKnowledgeEvent, XEPHA_PROJECT } from "./index.js";
+
+interface RootPackageJson {
+  readonly version: string;
+}
 
 describe("defineKnowledgeEvent", () => {
   it("normalizes optional tags and evidence", () => {
@@ -13,5 +18,15 @@ describe("defineKnowledgeEvent", () => {
 
     expect(event.tags).toEqual([]);
     expect(event.evidence).toEqual([]);
+  });
+});
+
+describe("XEPHA_PROJECT", () => {
+  it("uses the root package version", async () => {
+    const rootPackage = JSON.parse(
+      await readFile(new URL("../../../package.json", import.meta.url), "utf8"),
+    ) as RootPackageJson;
+
+    expect(XEPHA_PROJECT.version).toBe(rootPackage.version);
   });
 });

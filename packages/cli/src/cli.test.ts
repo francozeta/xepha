@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+import { defineKnowledgeEvent } from "@xepha/core";
+import { SQLiteKnowledgeStore } from "@xepha/memory";
 import { createCliProgram } from "./cli.js";
 
 const execFileAsync = promisify(execFile);
@@ -96,14 +98,70 @@ async function runCli(
   });
 
   program.exitOverride();
-  await program.parseAsync(["node", "xepha", ...args], {
-    from: "node",
-  });
+  try {
+    await program.parseAsync(["node", "xepha", ...args], {
+      from: "node",
+    });
+  } catch (error: unknown) {
+    if (isCommanderExit(error, 0)) {
+      return { stderr, stdout };
+    }
+
+    throw error;
+  }
 
   return { stderr, stdout };
 }
 
+function isCommanderExit(error: unknown, exitCode: number): boolean {
+  return error instanceof Error && "exitCode" in error && error.exitCode === exitCode;
+}
+
+async function seedKnowledgeEvents(dbPath: string, count: number): Promise<void> {
+  await mkdir(dirname(dbPath), { recursive: true });
+  const store = await SQLiteKnowledgeStore.open({
+    url: `file:${dbPath.replaceAll("\\", "/")}`,
+  });
+
+  try {
+    for (let index = 0; index < count; index += 1) {
+      await store.append(
+        defineKnowledgeEvent({
+          id: `evt_${index.toString().padStart(2, "0")}`,
+          kind: "commit",
+          title: `Commit ${index}`,
+          summary: `Seed event ${index}`,
+          occurredAt: `2026-07-${(index + 1).toString().padStart(2, "0")}T12:00:00.000Z`,
+          tags: ["seed"],
+        }),
+      );
+    }
+  } finally {
+    await store.close();
+  }
+}
+
 describe("CLI local loop", () => {
+  it("prints a branded command overview when no command is provided", async () => {
+    await withTempDir("xepha-cli-root-", async (workspacePath) => {
+      const result = await runCli(workspacePath, []);
+
+      expect(result.stderr).toBe("");
+      expect(result.stdout).toContain("XEPHA");
+      expect(result.stdout).toContain("Local project memory");
+      expect(result.stdout).toContain("pnpm xepha doctor");
+    });
+  });
+
+  it("supports -v as a version alias", async () => {
+    await withTempDir("xepha-cli-version-", async (workspacePath) => {
+      const result = await runCli(workspacePath, ["-v"]);
+
+      expect(result.stderr).toBe("");
+      expect(result.stdout.trim()).toBe("0.3.0");
+    });
+  });
+
   it("ingests git commits, lists events, and renders a YAML context pack", async () => {
     await withTempDir("xepha-cli-", async (workspacePath) => {
       const repoPath = join(workspacePath, "repo");
@@ -169,6 +227,7 @@ describe("CLI local loop", () => {
       ]);
 
       expect(ingest.stdout).toContain("Ingested 2 event");
+      expect(ingest.stdout).toContain("Reading git history");
       expect(events.stdout).toContain("feat: add runtime notes");
       expect(events.stdout).toContain(`git:${hash}`);
       expect(context.stderr).toBe("");
@@ -187,6 +246,23 @@ describe("CLI local loop", () => {
       expect(zeroLimitContext.stdout).toContain("confidence: 1");
     });
   }, 20_000);
+
+  it("limits event listing output by default", async () => {
+    await withTempDir("xepha-cli-events-limit-", async (workspacePath) => {
+      const dbPath = join(workspacePath, "knowledge.db");
+      await seedKnowledgeEvents(dbPath, 25);
+
+      const events = await runCli(workspacePath, ["events", "list", "--db", dbPath]);
+      const eventLines = events.stdout
+        .split("\n")
+        .filter((line) => line.includes(" evt_"));
+
+      expect(eventLines).toHaveLength(20);
+      expect(events.stdout).toContain("evt_24");
+      expect(events.stdout).not.toContain("evt_00");
+      expect(events.stdout).toContain("Showing 20 of 25 event(s).");
+    });
+  });
 
   it("uses .xepha/knowledge.db as the default local database", async () => {
     await withTempDir("xepha-cli-default-db-", async (workspacePath) => {

@@ -6,14 +6,19 @@ import { XEPHA_PROJECT, type KnowledgeEvent } from "@xepha/core";
 import { explainRankedEventsForTask, type RankedKnowledgeEvent } from "@xepha/graph";
 import { SQLiteKnowledgeStore } from "@xepha/memory";
 import { createContextPackV0, stringifyContextPackYaml } from "@xepha/protocol";
+import {
+  type CliWritable,
+  writeIntro,
+  writeOutro,
+  writeStep,
+  writeSuccess,
+  writeWordmark,
+} from "./ui.js";
 
 const DEFAULT_DATABASE_PATH = ".xepha/knowledge.db";
 const DEFAULT_GIT_LIMIT = 20;
-const DEFAULT_CONTEXT_LIMIT = 8;
-
-interface CliWritable {
-  write(chunk: string | Uint8Array): boolean;
-}
+const DEFAULT_CONTEXT_LIMIT = 5;
+const DEFAULT_EVENTS_LIMIT = 20;
 
 export interface CreateCliProgramOptions {
   readonly cwd?: string;
@@ -30,10 +35,18 @@ interface GitIngestOptions extends DatabaseOptions {
   readonly repo: string;
 }
 
+interface EventListOptions extends DatabaseOptions {
+  readonly limit: number;
+}
+
 interface ContextOptions extends DatabaseOptions {
   readonly explain?: boolean;
   readonly format: "json" | "yaml";
   readonly limit: number;
+}
+
+interface RootOptions {
+  readonly versionShort?: boolean;
 }
 
 export function createCliProgram(options: CreateCliProgramOptions = {}): Command {
@@ -54,14 +67,29 @@ export function createCliProgram(options: CreateCliProgramOptions = {}): Command
   program
     .name("xepha")
     .description("Local project memory for software workspaces.")
-    .version(XEPHA_PROJECT.version);
+    .version(XEPHA_PROJECT.version)
+    .option("-v, --version-short", "output the version number")
+    .action(() => {
+      const rootOptions = program.opts<RootOptions>();
+
+      if (rootOptions.versionShort) {
+        stdout.write(`${XEPHA_PROJECT.version}\n`);
+        return;
+      }
+
+      writeCommandOverview(stdout);
+    });
 
   program
     .command("doctor")
     .description("Print the current Xepha workspace baseline.")
     .action(() => {
-      stdout.write(`${XEPHA_PROJECT.name} ${XEPHA_PROJECT.version}\n`);
-      stdout.write(`${XEPHA_PROJECT.summary}\n`);
+      writeWordmark(stdout);
+      writeIntro(stdout, "XEPHA");
+      writeStep(stdout, `${XEPHA_PROJECT.name} ${XEPHA_PROJECT.version}`);
+      writeStep(stdout, XEPHA_PROJECT.summary);
+      writeSuccess(stdout, "Workspace baseline ready");
+      writeOutro(stdout);
     });
 
   const ingest = program.command("ingest").description("Ingest project data.");
@@ -78,6 +106,11 @@ export function createCliProgram(options: CreateCliProgramOptions = {}): Command
       DEFAULT_GIT_LIMIT,
     )
     .action(async (commandOptions: GitIngestOptions) => {
+      writeIntro(stdout, "XEPHA ingest");
+      writeStep(stdout, `Source: ${resolveFromCwd(cwd, commandOptions.repo)}`);
+      writeStep(stdout, `Database: ${commandOptions.db}`);
+      writeStep(stdout, "Reading git history");
+
       await withStore(cwd, commandOptions.db, async (store) => {
         const adapter = new GitCommitAdapter({
           limit: commandOptions.limit,
@@ -89,7 +122,8 @@ export function createCliProgram(options: CreateCliProgramOptions = {}): Command
           await store.append(event);
         }
 
-        stdout.write(`Ingested ${events.length} event(s).\n`);
+        writeSuccess(stdout, `Ingested ${events.length} event(s)`);
+        writeOutro(stdout);
       });
     });
 
@@ -99,17 +133,32 @@ export function createCliProgram(options: CreateCliProgramOptions = {}): Command
     .command("list")
     .description("List events stored in local memory.")
     .option("--db <path>", "SQLite database path.", DEFAULT_DATABASE_PATH)
-    .action(async (commandOptions: DatabaseOptions) => {
+    .option(
+      "--limit <number>",
+      "Maximum number of events to list.",
+      parseNonNegativeInteger,
+      DEFAULT_EVENTS_LIMIT,
+    )
+    .action(async (commandOptions: EventListOptions) => {
       await withStore(cwd, commandOptions.db, async (store) => {
         const storedEvents = await store.list();
+        const listedEvents = [...storedEvents]
+          .sort(compareEventsByRecency)
+          .slice(0, commandOptions.limit);
 
         if (storedEvents.length === 0) {
           stdout.write("No events found.\n");
           return;
         }
 
-        for (const event of storedEvents) {
+        for (const event of listedEvents) {
           stdout.write(formatEventLine(event));
+        }
+
+        if (listedEvents.length < storedEvents.length) {
+          stdout.write(
+            `Showing ${listedEvents.length} of ${storedEvents.length} event(s). Use --limit to show more.\n`,
+          );
         }
       });
     });
@@ -215,6 +264,27 @@ function formatEventLine(event: KnowledgeEvent): string {
   return `${event.occurredAt} ${event.kind} ${event.id} ${event.title}\n`;
 }
 
+function writeCommandOverview(stdout: CliWritable): void {
+  writeWordmark(stdout);
+  writeIntro(stdout, "XEPHA");
+  writeStep(stdout, "Local project memory for software workspaces.");
+  writeStep(stdout, "Try: pnpm xepha doctor");
+  writeStep(stdout, "Try: pnpm xepha ingest git --repo .");
+  writeStep(stdout, 'Try: pnpm xepha context "continue the current work"');
+  writeOutro(stdout);
+}
+
+function compareEventsByRecency(left: KnowledgeEvent, right: KnowledgeEvent): number {
+  const leftTime = Date.parse(left.occurredAt);
+  const rightTime = Date.parse(right.occurredAt);
+
+  if (leftTime !== rightTime) {
+    return rightTime - leftTime;
+  }
+
+  return left.id.localeCompare(right.id);
+}
+
 function writeContextExplanation(
   stderr: CliWritable,
   rankedEvents: readonly RankedKnowledgeEvent[],
@@ -222,11 +292,17 @@ function writeContextExplanation(
 ): void {
   const selectedEvents = rankedEvents.slice(0, limit);
 
+  writeIntro(stderr, "XEPHA context");
+  writeStep(stderr, `Explaining ${selectedEvents.length} selected event(s)`);
+
   for (const rankedEvent of selectedEvents) {
-    stderr.write(
-      `Selected ${rankedEvent.event.id} (score ${rankedEvent.score}): ${rankedEvent.reasons.join("; ")}\n`,
+    writeStep(
+      stderr,
+      `Selected ${rankedEvent.event.id} (score ${rankedEvent.score}): ${rankedEvent.reasons.join("; ")}`,
     );
   }
+
+  writeOutro(stderr);
 }
 
 function parseNonNegativeInteger(value: string): number {

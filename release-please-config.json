@@ -7,6 +7,12 @@
       "release-type": "node",
       "package-name": "xepha",
       "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "packages/core/src/index.ts"
+        }
+      ],
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
       "pull-request-title-pattern": "chore${scope}: release ${version}"

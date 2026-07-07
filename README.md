@@ -53,6 +53,7 @@ pnpm dev
 Useful commands:
 
 ```sh
+pnpm xepha doctor
 pnpm lint
 pnpm check-types
 pnpm test
@@ -62,6 +63,8 @@ pnpm --filter @xepha/api dev
 pnpm --filter @xepha/playground dev
 pnpm --filter @xepha/website dev
 ```
+
+CLI usage is documented in [docs/cli.md](docs/cli.md).
 
 ## Development
 

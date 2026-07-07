@@ -2,7 +2,7 @@ export const XEPHA_PROJECT = {
   name: "Xepha",
   summary:
     "A local-first intelligence layer for software project continuity and AI-native development.",
-  version: "0.1.0",
+  version: "0.3.0", // x-release-please-version
 } as const;
 
 export type KnowledgeEventKind =

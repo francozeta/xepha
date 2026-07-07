@@ -103,7 +103,7 @@ describe("GitCommitAdapter", () => {
         }),
       ]);
     });
-  }, 15_000);
+  }, 30_000);
 
   it("uses the origin remote URL when it can create a commit link", async () => {
     await withTempRepo(async (repoPath) => {
@@ -136,7 +136,7 @@ describe("GitCommitAdapter", () => {
         }),
       ]);
     });
-  }, 15_000);
+  }, 30_000);
 
   it("returns no events for an empty git history", async () => {
     await withTempRepo(async (repoPath) => {

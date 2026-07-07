@@ -36,3 +36,9 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
+
+# Local agent workspace
+.agents/
+.plan/
+.skills/
+skills-lock.json

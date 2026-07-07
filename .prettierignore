@@ -6,3 +6,7 @@ coverage
 dist
 build
 pnpm-lock.yaml
+.agents
+.plan
+.skills
+skills-lock.json

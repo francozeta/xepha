@@ -19,12 +19,14 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@xepha/core": "workspace:*"
+    "@xepha/core": "workspace:*",
+    "yaml": "2.9.0",
+    "zod": "4.4.3"
   },
   "devDependencies": {
+    "@types/node": "^22.15.3",
     "@xepha/eslint-config": "workspace:*",
     "@xepha/typescript-config": "workspace:*",
-    "@types/node": "^22.15.3",
     "eslint": "^9.39.1",
     "typescript": "5.9.2",
     "vitest": "^4.0.15"

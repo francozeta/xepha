@@ -1,76 +1,181 @@
 .page {
+  align-items: center;
+  background: #030303;
+  color: #f4f1ea;
+  display: grid;
+  isolation: isolate;
+  justify-items: center;
   min-height: 100svh;
-  padding: 72px 24px;
+  overflow: hidden;
+  padding: 32px;
+  position: relative;
+}
+
+.shader {
+  filter: contrast(1.1) saturate(0);
+  inset: -12vh -12vw;
+  opacity: 0.76;
+  position: absolute;
+  z-index: -3;
+}
+
+.shader canvas {
+  display: block;
+}
+
+.vignette {
+  background:
+    radial-gradient(circle at center, rgb(3 3 3 / 0.12) 0 20%, rgb(3 3 3 / 0.5) 58%),
+    linear-gradient(180deg, rgb(3 3 3 / 0.7), rgb(3 3 3 / 0.16) 45%, #030303);
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: -2;
 }
 
 .hero {
-  margin: 0 auto;
-  max-width: 1040px;
-}
-
-.kicker {
-  color: #4f46e5;
-  font-family: var(--font-geist-mono);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  margin-bottom: 18px;
-  text-transform: uppercase;
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  max-width: 760px;
+  text-align: center;
 }
 
 .hero h1 {
-  color: #111827;
-  font-size: clamp(48px, 8vw, 104px);
-  line-height: 0.95;
+  color: #f7f4ed;
+  font-family: var(--font-geist-pixel-line);
+  font-size: clamp(72px, 15vw, 188px);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 0.82;
   margin: 0;
+  text-shadow:
+    0 0 32px rgb(3 3 3 / 0.62),
+    0 0 2px rgb(247 244 237 / 0.36);
+  text-transform: lowercase;
 }
 
-.lead {
-  color: #4b5563;
-  font-size: 22px;
-  line-height: 1.45;
-  margin: 28px 0 48px;
-  max-width: 680px;
+.hero p {
+  color: rgb(244 241 234 / 0.78);
+  font-size: clamp(17px, 2vw, 23px);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.35;
+  margin: 0;
+  max-width: 560px;
 }
 
-.grid {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.actions {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 6px;
 }
 
-.grid article {
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 22px;
-}
-
-.grid span {
-  color: #6b7280;
-  display: block;
+.status,
+.githubButton,
+.credit {
+  color: rgb(244 241 234 / 0.82);
   font-family: var(--font-geist-mono);
   font-size: 12px;
-  margin-bottom: 24px;
+  line-height: 1;
 }
 
-.grid h2 {
-  color: #111827;
-  font-size: 18px;
-  margin: 0 0 10px;
+.status,
+.githubButton {
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
-.grid p {
-  color: #4b5563;
-  line-height: 1.6;
+.status {
+  color: rgb(244 241 234 / 0.58);
+}
+
+.githubButton {
+  border: 1px solid rgb(244 241 234 / 0.28);
+  border-radius: 999px;
+  color: rgb(244 241 234 / 0.86);
+  padding: 12px 16px;
+  text-decoration: none;
+  background: rgb(244 241 234 / 0.08);
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.githubButton:hover,
+.githubButton:focus-visible {
+  background: rgb(244 241 234 / 0.14);
+  border-color: rgb(244 241 234 / 0.5);
+  color: #f7f4ed;
+}
+
+.githubButton:focus-visible {
+  outline: 2px solid rgb(244 241 234 / 0.72);
+  outline-offset: 4px;
+}
+
+.credit {
+  color: rgb(244 241 234 / 0.48);
+  font-size: 11px;
+  letter-spacing: 0;
   margin: 0;
+  position: absolute;
+  bottom: clamp(18px, 4vh, 34px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
 }
 
-@media (max-width: 760px) {
+.credit a {
+  color: rgb(244 241 234 / 0.74);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: rgb(244 241 234 / 0.5);
+  text-underline-offset: 3px;
+  transition:
+    color 160ms ease,
+    text-decoration-color 160ms ease;
+}
+
+.credit a:hover,
+.credit a:focus-visible {
+  color: #f7f4ed;
+  text-decoration-color: #f7f4ed;
+}
+
+.credit a:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid rgb(244 241 234 / 0.72);
+  outline-offset: 4px;
+}
+
+@media (max-width: 700px) {
   .page {
-    padding: 48px 18px;
+    padding: 24px;
   }
 
-  .grid {
-    grid-template-columns: 1fr;
+  .shader {
+    inset: -8vh -40vw;
+    opacity: 0.68;
+  }
+
+  .hero {
+    gap: 18px;
+  }
+
+  .hero h1 {
+    font-size: clamp(56px, 21vw, 104px);
+  }
+
+  .hero p {
+    max-width: 340px;
+  }
+
+  .actions {
+    flex-direction: column;
   }
 }

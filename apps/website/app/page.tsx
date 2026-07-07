@@ -1,33 +1,34 @@
+import { ShaderBackdrop } from "./shader-backdrop";
 import styles from "./page.module.css";
+
+const description = "Local memory for project history, decisions, and context.";
 
 export default function Home() {
   return (
     <main className={styles.page}>
-      <section className={styles.hero}>
-        <p className={styles.kicker}>Local-first project intelligence</p>
-        <h1>Xepha</h1>
-        <p className={styles.lead}>
-          Xepha turns project evolution into structured, reusable context for humans and
-          AI agents.
-        </p>
-        <div className={styles.grid}>
-          <article>
-            <span>01</span>
-            <h2>Core first</h2>
-            <p>Pure TypeScript packages own the intelligence layer.</p>
-          </article>
-          <article>
-            <span>02</span>
-            <h2>Local by default</h2>
-            <p>SQLite and local indexes come before any cloud control plane.</p>
-          </article>
-          <article>
-            <span>03</span>
-            <h2>Agent friendly</h2>
-            <p>MCP and external protocols are adapters, not the product core.</p>
-          </article>
+      <ShaderBackdrop />
+      <div className={styles.vignette} aria-hidden="true" />
+      <section className={styles.hero} aria-labelledby="hero-title">
+        <h1 id="hero-title">Xepha</h1>
+        <p>{description}</p>
+        <div className={styles.actions}>
+          <span className={styles.status}>Coming soon</span>
+          <a
+            className={styles.githubButton}
+            href="https://github.com/francozeta/xepha"
+            rel="noreferrer"
+            target="_blank"
+          >
+            GitHub
+          </a>
         </div>
       </section>
+      <p className={styles.credit}>
+        made by{" "}
+        <a href="https://github.com/francozeta" rel="noreferrer" target="_blank">
+          francozeta
+        </a>
+      </p>
     </main>
   );
 }

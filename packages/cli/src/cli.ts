@@ -3,6 +3,7 @@ import { dirname, isAbsolute, resolve } from "node:path";
 import { Command } from "commander";
 import { GitCommitAdapter } from "@xepha/adapters";
 import { XEPHA_PROJECT, type KnowledgeEvent } from "@xepha/core";
+import { rankEventsForTask } from "@xepha/graph";
 import { SQLiteKnowledgeStore } from "@xepha/memory";
 import { createContextPackV0, stringifyContextPackYaml } from "@xepha/protocol";
 
@@ -132,14 +133,19 @@ export function createCliProgram(options: CreateCliProgramOptions = {}): Command
     .action(async (task: string, commandOptions: ContextOptions) => {
       await withStore(cwd, commandOptions.db, async (store) => {
         const storedEvents = await store.list();
-        const newestFirstEvents = [...storedEvents].reverse();
+        const relations = await store.listRelations();
+        const rankedEvents = rankEventsForTask({
+          task,
+          events: storedEvents,
+          relations,
+        });
         const pack = createContextPackV0({
           task,
-          events: newestFirstEvents,
+          events: rankedEvents,
           limit: commandOptions.limit,
-          confidence: newestFirstEvents.length === 0 ? 0 : 1,
+          confidence: rankedEvents.length === 0 ? 0 : 1,
           warnings:
-            newestFirstEvents.length === 0 ? ["No events found in the local store."] : [],
+            rankedEvents.length === 0 ? ["No events found in the local store."] : [],
         });
 
         if (commandOptions.format === "json") {

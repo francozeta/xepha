@@ -25,6 +25,7 @@
   "dependencies": {
     "@xepha/adapters": "workspace:*",
     "@xepha/core": "workspace:*",
+    "@xepha/graph": "workspace:*",
     "@xepha/memory": "workspace:*",
     "@xepha/protocol": "workspace:*",
     "commander": "^14.0.2"

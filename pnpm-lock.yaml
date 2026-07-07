@@ -189,6 +189,9 @@ importers:
       '@xepha/core':
         specifier: workspace:*
         version: link:../core
+      '@xepha/graph':
+        specifier: workspace:*
+        version: link:../graph
       '@xepha/memory':
         specifier: workspace:*
         version: link:../memory

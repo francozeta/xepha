@@ -1,4 +1,20 @@
 import type { KnowledgeEvent } from "@xepha/core";
+export {
+  CONTEXT_PACK_VERSION,
+  contextPackEventSchema,
+  contextPackSourceSchema,
+  contextPackV0JsonSchema,
+  contextPackV0Schema,
+  createContextPackV0,
+} from "./context-pack.js";
+export type {
+  ContextPackEvent,
+  ContextPackSource,
+  ContextPackV0,
+  CreateContextPackV0Input,
+} from "./context-pack.js";
+export { parseContextPackYaml, stringifyContextPackYaml } from "./yaml-codec.js";
+export type { ParseContextPackYamlResult, ProtocolIssue } from "./yaml-codec.js";
 
 export interface ContextRequest {
   readonly task: string;

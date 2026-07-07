@@ -2,19 +2,17 @@
 
 ## [0.2.0](https://github.com/francozeta/xepha/compare/v0.1.1...v0.2.0) (2026-07-07)
 
-
 ### Features
 
-* **memory:** add sqlite knowledge store ([f372ef8](https://github.com/francozeta/xepha/commit/f372ef841972bb1443612015f7b664a50f9d4b25))
-* **memory:** add sqlite knowledge store ([2c73292](https://github.com/francozeta/xepha/commit/2c73292f35cc4e1d7b36f2f2a8fd16b5b5cfc95b))
-* **website:** add coming soon hero ([94777bb](https://github.com/francozeta/xepha/commit/94777bb684d8121328cfeb2ae05eca596efbdbc0))
-* **website:** add coming soon hero ([bf912f8](https://github.com/francozeta/xepha/commit/bf912f8f14195bc00b6aa2f3b25856344e883a7d))
-
+- **memory:** add sqlite knowledge store ([f372ef8](https://github.com/francozeta/xepha/commit/f372ef841972bb1443612015f7b664a50f9d4b25))
+- **memory:** add sqlite knowledge store ([2c73292](https://github.com/francozeta/xepha/commit/2c73292f35cc4e1d7b36f2f2a8fd16b5b5cfc95b))
+- **website:** add coming soon hero ([94777bb](https://github.com/francozeta/xepha/commit/94777bb684d8121328cfeb2ae05eca596efbdbc0))
+- **website:** add coming soon hero ([bf912f8](https://github.com/francozeta/xepha/commit/bf912f8f14195bc00b6aa2f3b25856344e883a7d))
 
 ### Bug Fixes
 
-* **repo:** limit root dev task to services ([f365875](https://github.com/francozeta/xepha/commit/f365875994f058cc91e3c0a538345abba0eb0267))
-* **repo:** limit root dev task to services ([5e06c8f](https://github.com/francozeta/xepha/commit/5e06c8fade68f99354b051cfbd4aeebb6654dc7d))
+- **repo:** limit root dev task to services ([f365875](https://github.com/francozeta/xepha/commit/f365875994f058cc91e3c0a538345abba0eb0267))
+- **repo:** limit root dev task to services ([5e06c8f](https://github.com/francozeta/xepha/commit/5e06c8fade68f99354b051cfbd4aeebb6654dc7d))
 
 ## [0.1.1](https://github.com/francozeta/xepha/compare/v0.1.0...v0.1.1) (2026-07-06)
 

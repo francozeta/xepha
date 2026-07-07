@@ -48,6 +48,8 @@ pnpm install
 pnpm dev
 ```
 
+`pnpm dev` starts the local API, website, and playground.
+
 Useful commands:
 
 ```sh

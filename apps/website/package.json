@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@paper-design/shaders-react": "0.0.77",
+    "@vercel/analytics": "^2.0.1",
     "@xepha/ui": "workspace:*",
     "geist": "1.7.2",
     "next": "16.2.0",

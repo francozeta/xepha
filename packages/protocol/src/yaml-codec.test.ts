@@ -26,6 +26,9 @@ describe("context pack YAML codec", () => {
     const yaml = stringifyContextPackYaml(pack);
     const result = parseContextPackYaml(yaml);
 
+    expect(yaml).toContain("knowledge:");
+    expect(yaml).toContain("relevantKnowledge:");
+    expect(yaml).toContain("recommendedNextSteps:");
     expect(result).toEqual({
       ok: true,
       data: pack,

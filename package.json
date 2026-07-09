@@ -13,10 +13,9 @@
   "homepage": "https://github.com/francozeta/xepha#readme",
   "scripts": {
     "build": "turbo run build",
+    "check": "pnpm format:check && turbo run lint check-types test build",
     "dev": "turbo run dev --filter=@xepha/api --filter=@xepha/playground --filter=@xepha/website",
     "xepha": "node scripts/xepha.mjs",
-    "xepha:build": "turbo run build --filter=@xepha/cli...",
-    "xepha:dev": "pnpm --silent xepha:build 1>&2 && node packages/cli/dist/index.js",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "format": "prettier --write \"**/*.{ts,tsx,md,json,yml,yaml,css}\"",

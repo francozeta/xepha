@@ -1,8 +1,47 @@
 # CLI
 
-The CLI can already run against a local git repository.
+The CLI is split into a short workspace flow and lower-level commands for
+debugging the protocol.
 
-From the Xepha repository:
+## Workspace flow
+
+From a project root:
+
+```sh
+pnpm xepha init
+pnpm xepha
+pnpm xepha sync
+pnpm xepha explain
+```
+
+The `pnpm xepha` script runs the built CLI. If `packages/cli/dist/index.js` does
+not exist yet, or package source files are newer than the build output, it
+builds the CLI first.
+
+`pnpm xepha init` creates a visible `.xepha/` workspace:
+
+```txt
+.xepha/
+  config.json
+  sources.json
+  rules/
+    project.json
+  context/
+    profile.json
+```
+
+`config.json`, `sources.json`, `rules/`, and `context/` are intended to be read
+and edited. Runtime files such as `knowledge.db`, `cache/`, and `runs/` stay
+local.
+
+`pnpm xepha` syncs the configured sources, infers the current work from the
+workspace, and prints a short human summary. `pnpm xepha explain` shows why the
+current evidence was selected.
+
+## Advanced commands
+
+The lower-level commands remain available for tests, debugging, and tools that
+need the protocol directly:
 
 ```sh
 pnpm xepha doctor
@@ -12,19 +51,14 @@ pnpm xepha context "continue the current work" --db .xepha/knowledge.db --format
 pnpm xepha context "continue the current work" --db .xepha/knowledge.db --explain
 ```
 
-The `pnpm xepha` script runs the built CLI. If `packages/cli/dist/index.js` does
-not exist yet, or package source files are newer than the build output, it
-builds the CLI first.
-
-When redirecting context output to a file, use `pnpm --silent` so pnpm lifecycle
-text does not mix with YAML or JSON:
+When redirecting context output, use `pnpm --silent` so pnpm lifecycle text does
+not mix with YAML or JSON:
 
 ```sh
 pnpm --silent xepha context "resume the project" --db .xepha/knowledge.db --explain 1> context.yml 2> explain.txt
 ```
 
-The default database path is `.xepha/knowledge.db`. It is a local SQLite file and
-is ignored by git.
+The default database path is `.xepha/knowledge.db`. It is a local SQLite file.
 
 Context packs include both raw evidence and a small derived knowledge summary.
 The `events` section is still useful for debugging, but consumers should prefer

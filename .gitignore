@@ -21,8 +21,12 @@ coverage
 # Vercel
 .vercel
 
-# Xepha local data
-.xepha/
+# Xepha local runtime data
+.xepha/knowledge.db
+.xepha/knowledge.db-*
+.xepha/cache/
+.xepha/runs/
+.xepha/last-context.json
 
 # Build Outputs
 .next/

@@ -1,11 +1,12 @@
-import { mkdir } from "node:fs/promises";
-import { dirname, isAbsolute, resolve } from "node:path";
 import { Command } from "commander";
 import { GitCommitAdapter } from "@xepha/adapters";
 import { XEPHA_PROJECT, type KnowledgeEvent } from "@xepha/core";
 import { explainRankedEventsForTask, type RankedKnowledgeEvent } from "@xepha/graph";
-import { SQLiteKnowledgeStore } from "@xepha/memory";
-import { createContextPackV0, stringifyContextPackYaml } from "@xepha/protocol";
+import {
+  createContextPackV0,
+  stringifyContextPackYaml,
+  type ContextPackV0,
+} from "@xepha/protocol";
 import {
   type CliWritable,
   writeIntro,
@@ -14,10 +15,19 @@ import {
   writeSuccess,
   writeWordmark,
 } from "./ui.js";
+import {
+  DEFAULT_CONTEXT_LIMIT,
+  DEFAULT_DATABASE_PATH,
+  DEFAULT_GIT_LIMIT,
+  buildWorkspaceContext,
+  initializeWorkspace,
+  loadWorkspace,
+  resolveFromCwd,
+  syncWorkspaceSources,
+  withStore,
+  type XephaWorkspace,
+} from "./workspace.js";
 
-const DEFAULT_DATABASE_PATH = ".xepha/knowledge.db";
-const DEFAULT_GIT_LIMIT = 20;
-const DEFAULT_CONTEXT_LIMIT = 5;
 const DEFAULT_EVENTS_LIMIT = 20;
 
 export interface CreateCliProgramOptions {
@@ -69,7 +79,7 @@ export function createCliProgram(options: CreateCliProgramOptions = {}): Command
     .description("Local project memory for software workspaces.")
     .version(XEPHA_PROJECT.version)
     .option("-v, --version-short", "output the version number")
-    .action(() => {
+    .action(async () => {
       const rootOptions = program.opts<RootOptions>();
 
       if (rootOptions.versionShort) {
@@ -77,7 +87,79 @@ export function createCliProgram(options: CreateCliProgramOptions = {}): Command
         return;
       }
 
-      writeCommandOverview(stdout);
+      const workspace = await loadWorkspace(cwd);
+
+      if (workspace === undefined) {
+        writeCommandOverview(stdout);
+        return;
+      }
+
+      await runSmartWorkspaceLoop(cwd, stdout, workspace);
+    });
+
+  program
+    .command("init")
+    .description("Create a configurable .xepha workspace")
+    .action(async () => {
+      const result = await initializeWorkspace(cwd);
+
+      writeIntro(stdout, "XEPHA init");
+      writeStep(stdout, "Created .xepha/config.json");
+      writeStep(stdout, "Created .xepha/sources.json");
+      writeStep(stdout, "Created .xepha/rules/project.json");
+      writeStep(stdout, "Created .xepha/context/profile.json");
+      writeStep(stdout, "Runtime data stays local in .xepha/knowledge.db");
+      writeSuccess(
+        stdout,
+        result.createdFiles.length === 0
+          ? ".xepha already initialized"
+          : "Initialized .xepha",
+      );
+      writeOutro(stdout);
+    });
+
+  program
+    .command("sync")
+    .description("Sync configured workspace sources")
+    .action(async () => {
+      const workspace = await loadWorkspace(cwd);
+
+      if (workspace === undefined) {
+        writeCommandOverview(stdout);
+        return;
+      }
+
+      writeIntro(stdout, "XEPHA sync");
+      const result = await syncWorkspaceSources(cwd, stdout, workspace);
+      writeWarnings(stdout, result.warnings);
+      writeSuccess(stdout, `Synced ${result.ingestedEvents} event(s)`);
+      writeOutro(stdout);
+    });
+
+  program
+    .command("explain")
+    .description("Explain the current workspace context")
+    .argument("[task]", "Task to explain context for.")
+    .action(async (task: string | undefined) => {
+      const workspace = await loadWorkspace(cwd);
+
+      if (workspace === undefined) {
+        writeCommandOverview(stdout);
+        return;
+      }
+
+      writeIntro(stdout, "XEPHA explain");
+      const syncResult = await syncWorkspaceSources(cwd, stdout, workspace);
+      const contextResult = await buildWorkspaceContext(cwd, workspace, task);
+
+      writeWarnings(stdout, syncResult.warnings);
+      writeStep(stdout, `Goal: ${contextResult.pack.knowledge.goal}`);
+      writeContextExplanationRows(
+        stdout,
+        contextResult.rankedEvents,
+        contextResult.pack.events.length,
+      );
+      writeOutro(stdout);
     });
 
   program
@@ -227,37 +309,19 @@ export async function main(
   });
 }
 
-async function withStore<T>(
+async function runSmartWorkspaceLoop(
   cwd: string,
-  dbPath: string,
-  run: (store: SQLiteKnowledgeStore) => Promise<T>,
-): Promise<T> {
-  const store = await openStore(cwd, dbPath);
+  stdout: CliWritable,
+  workspace: XephaWorkspace,
+): Promise<void> {
+  writeIntro(stdout, "XEPHA");
+  const syncResult = await syncWorkspaceSources(cwd, stdout, workspace);
+  const contextResult = await buildWorkspaceContext(cwd, workspace);
 
-  try {
-    return await run(store);
-  } finally {
-    await store.close();
-  }
-}
-
-async function openStore(cwd: string, dbPath: string): Promise<SQLiteKnowledgeStore> {
-  if (dbPath.startsWith("file:")) {
-    return SQLiteKnowledgeStore.open({
-      url: dbPath,
-    });
-  }
-
-  const resolvedPath = resolveFromCwd(cwd, dbPath);
-  await mkdir(dirname(resolvedPath), { recursive: true });
-
-  return SQLiteKnowledgeStore.open({
-    url: `file:${resolvedPath.replaceAll("\\", "/")}`,
-  });
-}
-
-function resolveFromCwd(cwd: string, path: string): string {
-  return isAbsolute(path) ? path : resolve(cwd, path);
+  writeWarnings(stdout, syncResult.warnings);
+  writeHumanContext(stdout, contextResult.pack);
+  writeSuccess(stdout, "Context ready");
+  writeOutro(stdout);
 }
 
 function formatEventLine(event: KnowledgeEvent): string {
@@ -268,10 +332,32 @@ function writeCommandOverview(stdout: CliWritable): void {
   writeWordmark(stdout);
   writeIntro(stdout, "XEPHA");
   writeStep(stdout, "Local project memory for software workspaces.");
-  writeStep(stdout, "Try: pnpm xepha doctor");
-  writeStep(stdout, "Try: pnpm xepha ingest git --repo .");
-  writeStep(stdout, 'Try: pnpm xepha context "continue the current work"');
+  writeStep(stdout, "Run: pnpm xepha init");
+  writeStep(stdout, "Then: pnpm xepha");
+  writeStep(stdout, "Advanced: pnpm xepha -h");
   writeOutro(stdout);
+}
+
+function writeHumanContext(stdout: CliWritable, pack: ContextPackV0): void {
+  const knowledgeCount = pack.knowledge.relevantKnowledge.length;
+  const itemLabel = knowledgeCount === 1 ? "item" : "items";
+
+  writeStep(stdout, `Goal: ${pack.knowledge.goal}`);
+  writeStep(stdout, `Selected ${knowledgeCount} knowledge ${itemLabel}`);
+
+  for (const item of pack.knowledge.relevantKnowledge) {
+    writeStep(stdout, item);
+  }
+
+  for (const warning of pack.warnings) {
+    writeStep(stdout, warning);
+  }
+}
+
+function writeWarnings(stdout: CliWritable, warnings: readonly string[]): void {
+  for (const warning of warnings) {
+    writeStep(stdout, warning);
+  }
 }
 
 function compareEventsByRecency(left: KnowledgeEvent, right: KnowledgeEvent): number {
@@ -290,19 +376,27 @@ function writeContextExplanation(
   rankedEvents: readonly RankedKnowledgeEvent[],
   limit: number,
 ): void {
-  const selectedEvents = rankedEvents.slice(0, limit);
-
   writeIntro(stderr, "XEPHA context");
-  writeStep(stderr, `Explaining ${selectedEvents.length} selected event(s)`);
+  writeContextExplanationRows(stderr, rankedEvents, limit);
+  writeOutro(stderr);
+}
+
+function writeContextExplanationRows(
+  output: CliWritable,
+  rankedEvents: readonly RankedKnowledgeEvent[],
+  limit: number,
+): void {
+  const selectedEvents = rankedEvents.slice(0, limit);
+  const eventLabel = selectedEvents.length === 1 ? "event" : "events";
+
+  writeStep(output, `Explaining ${selectedEvents.length} selected ${eventLabel}`);
 
   for (const rankedEvent of selectedEvents) {
     writeStep(
-      stderr,
+      output,
       `Selected ${rankedEvent.event.id} (score ${rankedEvent.score}): ${rankedEvent.reasons.join("; ")}`,
     );
   }
-
-  writeOutro(stderr);
 }
 
 function parseNonNegativeInteger(value: string): number {

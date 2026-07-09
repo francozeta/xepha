@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
@@ -142,16 +142,119 @@ async function seedKnowledgeEvents(dbPath: string, count: number): Promise<void>
 }
 
 describe("CLI local loop", () => {
-  it("prints a branded command overview when no command is provided", async () => {
+  it("prints init guidance when no command is provided outside a Xepha workspace", async () => {
     await withTempDir("xepha-cli-root-", async (workspacePath) => {
       const result = await runCli(workspacePath, []);
 
       expect(result.stderr).toBe("");
       expect(result.stdout).toContain("XEPHA");
       expect(result.stdout).toContain("Local project memory");
-      expect(result.stdout).toContain("pnpm xepha doctor");
+      expect(result.stdout).toContain("Run: pnpm xepha init");
+      expect(result.stdout).not.toContain("pnpm xepha ingest git --repo .");
     });
   });
+
+  it("initializes a white-box .xepha workspace", async () => {
+    await withTempDir("xepha-cli-init-", async (workspacePath) => {
+      const result = await runCli(workspacePath, ["init"]);
+      const config = JSON.parse(
+        await readFile(join(workspacePath, ".xepha", "config.json"), "utf8"),
+      ) as {
+        readonly storage: { readonly database: string };
+        readonly context: { readonly defaultGoal: string; readonly limit: number };
+      };
+      const sources = JSON.parse(
+        await readFile(join(workspacePath, ".xepha", "sources.json"), "utf8"),
+      ) as {
+        readonly sources: readonly [
+          {
+            readonly id: string;
+            readonly type: string;
+            readonly path: string;
+            readonly enabled: boolean;
+          },
+        ];
+      };
+      const rules = JSON.parse(
+        await readFile(join(workspacePath, ".xepha", "rules", "project.json"), "utf8"),
+      ) as { readonly rules: readonly string[] };
+      const profile = JSON.parse(
+        await readFile(join(workspacePath, ".xepha", "context", "profile.json"), "utf8"),
+      ) as { readonly include: readonly string[] };
+      const localIgnore = await readFile(
+        join(workspacePath, ".xepha", ".gitignore"),
+        "utf8",
+      );
+
+      expect(result.stderr).toBe("");
+      expect(result.stdout).toContain("Initialized .xepha");
+      expect(config.storage.database).toBe(".xepha/knowledge.db");
+      expect(config.context.defaultGoal).toBe("continue the current work");
+      expect(config.context.limit).toBe(5);
+      expect(sources.sources[0]).toMatchObject({
+        enabled: true,
+        id: "git",
+        path: ".",
+        type: "git",
+      });
+      expect(rules.rules).toContain("Prefer existing repository conventions.");
+      expect(profile.include).toContain("knowledge");
+      expect(localIgnore).toContain("knowledge.db");
+      expect(localIgnore).toContain("cache/");
+      expect(localIgnore).toContain("runs/");
+    });
+  });
+
+  it("runs the smart workspace loop without a task argument", async () => {
+    await withTempDir("xepha-cli-smart-loop-", async (workspacePath) => {
+      await createGitRepo(workspacePath);
+      await git(workspacePath, ["checkout", "-b", "feat/cli-smart-workspace"]);
+      await commitFile(
+        workspacePath,
+        "src/index.ts",
+        "export const value = 1;\n",
+        "feat(cli): add smart workspace loop",
+        "2026-07-08T13:00:00.000Z",
+      );
+
+      await runCli(workspacePath, ["init"]);
+
+      const result = await runCli(workspacePath, []);
+      const dbStats = await stat(join(workspacePath, ".xepha", "knowledge.db"));
+
+      expect(result.stderr).toBe("");
+      expect(result.stdout).toContain("Syncing git history");
+      expect(result.stdout).toContain("Goal: continue work on feat/cli-smart-workspace");
+      expect(result.stdout).toContain("Selected 1 knowledge item");
+      expect(result.stdout).toContain("CLI: add smart workspace loop.");
+      expect(result.stdout).toContain("Context ready");
+      expect(result.stdout).not.toContain("version: xepha.context.v0");
+      expect(dbStats.isFile()).toBe(true);
+    });
+  }, 20_000);
+
+  it("explains the smart workspace loop without a task argument", async () => {
+    await withTempDir("xepha-cli-smart-explain-", async (workspacePath) => {
+      await createGitRepo(workspacePath);
+      await git(workspacePath, ["checkout", "-b", "feat/cli-smart-workspace"]);
+      const hash = await commitFile(
+        workspacePath,
+        "src/index.ts",
+        "export const value = 1;\n",
+        "feat(cli): explain smart workspace loop",
+        "2026-07-08T13:00:00.000Z",
+      );
+
+      await runCli(workspacePath, ["init"]);
+
+      const result = await runCli(workspacePath, ["explain"]);
+
+      expect(result.stderr).toBe("");
+      expect(result.stdout).toContain("Explaining 1 selected event");
+      expect(result.stdout).toContain(`Selected git:${hash}`);
+      expect(result.stdout).toContain("matched title: cli");
+    });
+  }, 20_000);
 
   it("supports -v as a version alias", async () => {
     await withTempDir("xepha-cli-version-", async (workspacePath) => {

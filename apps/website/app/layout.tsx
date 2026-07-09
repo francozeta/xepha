@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { GeistMono } from "geist/font/mono";
 import { GeistPixelLine } from "geist/font/pixel";
 import { GeistSans } from "geist/font/sans";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const title = "Xepha";
@@ -70,6 +71,7 @@ export default function RootLayout({
         className={`${GeistSans.variable} ${GeistMono.variable} ${GeistPixelLine.variable}`}
       >
         {children}
+        <Analytics />
       </body>
     </html>
   );

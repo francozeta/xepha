@@ -1,3 +1,6 @@
+import { createElement } from "react";
+import { Text, renderToString } from "ink";
+
 export interface CliWritable {
   write(chunk: string | Uint8Array): boolean;
 }
@@ -15,17 +18,21 @@ export function writeWordmark(output: CliWritable): void {
 }
 
 export function writeIntro(output: CliWritable, title = "Xepha"): void {
-  output.write(`┌ ${title}\n│\n`);
+  output.write(`${renderInkText(`┌ ${title}`)}\n${renderInkText("│")}\n`);
 }
 
 export function writeStep(output: CliWritable, message: string): void {
-  output.write(`◇  ${message}\n`);
+  output.write(`${renderInkText(`◇  ${message}`)}\n`);
 }
 
 export function writeSuccess(output: CliWritable, message: string): void {
-  output.write(`◆  ${message}\n`);
+  output.write(`${renderInkText(`◆  ${message}`)}\n`);
 }
 
 export function writeOutro(output: CliWritable): void {
-  output.write("│\n└\n");
+  output.write(`${renderInkText("│")}\n${renderInkText("└")}\n`);
+}
+
+function renderInkText(value: string): string {
+  return renderToString(createElement(Text, null, value), { columns: 240 });
 }

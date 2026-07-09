@@ -2,13 +2,14 @@ import { execFile } from "node:child_process";
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, resolve } from "node:path";
 import { promisify } from "node:util";
-import { GitCommitAdapter } from "@xepha/adapters";
+import { GitCommitAdapter, MarkdownContextAdapter } from "@xepha/adapters";
 import { explainRankedEventsForTask, type RankedKnowledgeEvent } from "@xepha/graph";
 import { SQLiteKnowledgeStore } from "@xepha/memory";
 import { createContextPackV0, type ContextPackV0 } from "@xepha/protocol";
 import { type CliWritable, writeStep } from "./ui.js";
 
 export const DEFAULT_DATABASE_PATH = ".xepha/knowledge.db";
+export const DEFAULT_KNOWLEDGE_INDEX_PATH = ".xepha/knowledge/index.md";
 export const DEFAULT_GIT_LIMIT = 20;
 export const DEFAULT_CONTEXT_LIMIT = 5;
 
@@ -16,6 +17,7 @@ const WORKSPACE_CONFIG_PATH = ".xepha/config.json";
 const WORKSPACE_SOURCES_PATH = ".xepha/sources.json";
 const WORKSPACE_RULES_PATH = ".xepha/rules/project.json";
 const WORKSPACE_CONTEXT_PROFILE_PATH = ".xepha/context/profile.json";
+const WORKSPACE_PROJECT_CONTEXT_PATH = ".xepha/context/project.md";
 const WORKSPACE_LOCAL_IGNORE_PATH = ".xepha/.gitignore";
 
 const execFileAsync = promisify(execFile);
@@ -27,6 +29,9 @@ export interface WorkspaceConfig {
   };
   readonly storage: {
     readonly database: string;
+  };
+  readonly knowledge: {
+    readonly index: string;
   };
   readonly context: {
     readonly defaultGoal: string;
@@ -63,17 +68,52 @@ export interface WorkspaceSyncResult {
 export interface WorkspaceContextResult {
   readonly pack: ContextPackV0;
   readonly rankedEvents: readonly RankedKnowledgeEvent[];
+  readonly snapshotPath: string;
 }
 
-export async function initializeWorkspace(
-  cwd: string,
-): Promise<{ readonly createdFiles: readonly string[] }> {
+export async function initializeWorkspace(cwd: string): Promise<{
+  readonly createdFiles: readonly string[];
+  readonly updatedFiles: readonly string[];
+}> {
   const createdFiles: string[] = [];
+  const updatedFiles: string[] = [];
+
+  if (
+    await writeJsonFileIfMissing(
+      cwd,
+      WORKSPACE_CONFIG_PATH,
+      createDefaultWorkspaceConfig(cwd),
+    )
+  ) {
+    createdFiles.push(WORKSPACE_CONFIG_PATH);
+  }
+
+  if (await ensureWorkspaceConfigDefaults(cwd)) {
+    updatedFiles.push(WORKSPACE_CONFIG_PATH);
+  }
+
+  const config = normalizeWorkspaceConfig(
+    await readJsonFile(resolveFromCwd(cwd, WORKSPACE_CONFIG_PATH)),
+  );
+
+  if (
+    await writeJsonFileIfMissing(
+      cwd,
+      config.sources.file,
+      createDefaultWorkspaceSources(),
+    )
+  ) {
+    createdFiles.push(config.sources.file);
+  }
+
+  if (await ensureWorkspaceSourcesDefaults(cwd, config.sources.file)) {
+    updatedFiles.push(config.sources.file);
+  }
+
   const files = [
-    [WORKSPACE_CONFIG_PATH, createDefaultWorkspaceConfig(cwd)],
-    [WORKSPACE_SOURCES_PATH, createDefaultWorkspaceSources()],
     [WORKSPACE_RULES_PATH, createDefaultWorkspaceRules()],
     [WORKSPACE_CONTEXT_PROFILE_PATH, createDefaultContextProfile()],
+    [WORKSPACE_PROJECT_CONTEXT_PATH, createDefaultProjectContext(cwd)],
   ] as const;
 
   for (const [path, contents] of files) {
@@ -86,12 +126,19 @@ export async function initializeWorkspace(
 
   if (await writeTextFileIfMissing(cwd, WORKSPACE_LOCAL_IGNORE_PATH, getLocalIgnore())) {
     createdFiles.push(WORKSPACE_LOCAL_IGNORE_PATH);
+  } else if (await ensureLocalIgnoreDefaults(cwd)) {
+    updatedFiles.push(WORKSPACE_LOCAL_IGNORE_PATH);
   }
 
   await mkdir(resolveFromCwd(cwd, ".xepha/cache"), { recursive: true });
   await mkdir(resolveFromCwd(cwd, ".xepha/runs"), { recursive: true });
 
-  return { createdFiles };
+  return {
+    createdFiles: [...new Set(createdFiles)],
+    updatedFiles: [...new Set(updatedFiles)].filter(
+      (path) => !createdFiles.includes(path),
+    ),
+  };
 }
 
 export async function loadWorkspace(cwd: string): Promise<XephaWorkspace | undefined> {
@@ -128,6 +175,23 @@ export async function syncWorkspaceSources(
   await withStore(cwd, workspace.config.storage.database, async (store) => {
     for (const source of enabledSources) {
       if (source.type !== "git") {
+        if (source.type === "markdown") {
+          writeStep(stdout, "Syncing markdown context");
+
+          const adapter = new MarkdownContextAdapter({
+            rootPath: cwd,
+            sourcePath: source.path,
+          });
+          const events = await adapter.ingest();
+
+          for (const event of events) {
+            await store.append(event);
+          }
+
+          ingestedEvents += events.length;
+          continue;
+        }
+
         warnings.push(
           `Skipped ${source.id}. Source type ${source.type} is not supported yet.`,
         );
@@ -186,7 +250,9 @@ export async function buildWorkspaceContext(
       warnings: rankedEvents.length === 0 ? ["No events found in the local store."] : [],
     });
 
-    return { pack, rankedEvents };
+    const snapshotPath = await writeKnowledgeSnapshot(cwd, workspace, pack);
+
+    return { pack, rankedEvents, snapshotPath };
   });
 }
 
@@ -268,6 +334,9 @@ function createDefaultWorkspaceConfig(cwd: string): WorkspaceConfig {
     storage: {
       database: DEFAULT_DATABASE_PATH,
     },
+    knowledge: {
+      index: DEFAULT_KNOWLEDGE_INDEX_PATH,
+    },
     context: {
       defaultGoal: "continue the current work",
       limit: DEFAULT_CONTEXT_LIMIT,
@@ -288,6 +357,12 @@ function createDefaultWorkspaceSources(): WorkspaceSources {
         limit: DEFAULT_GIT_LIMIT,
         path: ".",
         type: "git",
+      },
+      {
+        enabled: true,
+        id: "project-context",
+        path: ".xepha/context",
+        type: "markdown",
       },
     ],
   };
@@ -319,10 +394,27 @@ function createDefaultContextProfile(): {
   };
 }
 
+function createDefaultProjectContext(cwd: string): string {
+  return [
+    "# Project Context",
+    "",
+    `Project: ${basename(cwd)}`,
+    "",
+    "Use this file for durable notes that should survive agent sessions and context compaction.",
+    "",
+    "## Current Direction",
+    "",
+    "- Keep context explicit, local, and evidence-backed.",
+    "- Prefer small source adapters over one large context file.",
+    "",
+  ].join("\n");
+}
+
 function getLocalIgnore(): string {
   return [
     "knowledge.db",
     "knowledge.db-*",
+    "knowledge/",
     "cache/",
     "runs/",
     "last-context.json",
@@ -352,6 +444,145 @@ async function writeTextFileIfMissing(
   }
 
   await writeFile(resolvedPath, contents);
+
+  return true;
+}
+
+async function ensureWorkspaceConfigDefaults(cwd: string): Promise<boolean> {
+  const configPath = resolveFromCwd(cwd, WORKSPACE_CONFIG_PATH);
+  const value = await readJsonFile(configPath);
+
+  if (!isRecord(value)) {
+    throw new Error("Couldn't read .xepha/config.json. Expected a JSON object.");
+  }
+
+  const next: Record<string, unknown> = { ...value };
+  let changed = false;
+
+  if (next.version !== 1) {
+    next.version = 1;
+    changed = true;
+  }
+
+  const project = copyRecord(next.project);
+  if (!hasText(project.name)) {
+    project.name = basename(cwd);
+    changed = true;
+  }
+  if (next.project !== project) {
+    next.project = project;
+  }
+
+  const storage = copyRecord(next.storage);
+  if (!hasText(storage.database)) {
+    storage.database = DEFAULT_DATABASE_PATH;
+    changed = true;
+  }
+  if (next.storage !== storage) {
+    next.storage = storage;
+  }
+
+  const knowledge = copyRecord(next.knowledge);
+  if (!hasText(knowledge.index)) {
+    knowledge.index = DEFAULT_KNOWLEDGE_INDEX_PATH;
+    changed = true;
+  }
+  if (next.knowledge !== knowledge) {
+    next.knowledge = knowledge;
+  }
+
+  const context = copyRecord(next.context);
+  if (!hasText(context.defaultGoal)) {
+    context.defaultGoal = "continue the current work";
+    changed = true;
+  }
+  if (!isNonNegativeInteger(context.limit)) {
+    context.limit = DEFAULT_CONTEXT_LIMIT;
+    changed = true;
+  }
+  if (next.context !== context) {
+    next.context = context;
+  }
+
+  const sources = copyRecord(next.sources);
+  if (!hasText(sources.file)) {
+    sources.file = WORKSPACE_SOURCES_PATH;
+    changed = true;
+  }
+  if (next.sources !== sources) {
+    next.sources = sources;
+  }
+
+  if (!changed) {
+    return false;
+  }
+
+  await writeFile(configPath, `${JSON.stringify(next, null, 2)}\n`);
+
+  return true;
+}
+
+async function ensureWorkspaceSourcesDefaults(
+  cwd: string,
+  sourcesPath: string,
+): Promise<boolean> {
+  const resolvedPath = resolveFromCwd(cwd, sourcesPath);
+  const value = await readJsonFile(resolvedPath);
+
+  if (!isRecord(value)) {
+    throw new Error("Couldn't read .xepha/sources.json. Expected a JSON object.");
+  }
+
+  const next: Record<string, unknown> = { ...value };
+  const sources = Array.isArray(next.sources) ? [...next.sources] : [];
+  let changed = false;
+
+  if (next.version !== 1) {
+    next.version = 1;
+    changed = true;
+  }
+
+  if (!Array.isArray(next.sources)) {
+    changed = true;
+  }
+
+  for (const source of createDefaultWorkspaceSources().sources) {
+    const hasSource = sources.some(
+      (candidate) => isRecord(candidate) && candidate.id === source.id,
+    );
+
+    if (!hasSource) {
+      sources.push(source);
+      changed = true;
+    }
+  }
+
+  if (!changed) {
+    return false;
+  }
+
+  next.sources = sources;
+  await writeFile(resolvedPath, `${JSON.stringify(next, null, 2)}\n`);
+
+  return true;
+}
+
+async function ensureLocalIgnoreDefaults(cwd: string): Promise<boolean> {
+  const ignorePath = resolveFromCwd(cwd, WORKSPACE_LOCAL_IGNORE_PATH);
+  const contents = await readFile(ignorePath, "utf8");
+  const lines = contents.split(/\r?\n/u);
+  const existingLines = new Set(lines.map((line) => line.trim()));
+  const missingLines = getLocalIgnore()
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !existingLines.has(line));
+
+  if (missingLines.length === 0) {
+    return false;
+  }
+
+  const normalizedContents = contents.endsWith("\n") ? contents : `${contents}\n`;
+  await writeFile(ignorePath, `${normalizedContents}${missingLines.join("\n")}\n`);
 
   return true;
 }
@@ -386,6 +617,12 @@ function normalizeWorkspaceConfig(value: unknown): WorkspaceConfig {
     },
     storage: {
       database: getString(storage.database, DEFAULT_DATABASE_PATH),
+    },
+    knowledge: {
+      index: getString(
+        isRecord(value.knowledge) ? value.knowledge.index : undefined,
+        DEFAULT_KNOWLEDGE_INDEX_PATH,
+      ),
     },
     context: {
       defaultGoal: getString(context.defaultGoal, "continue the current work"),
@@ -432,7 +669,76 @@ function getBoolean(value: unknown, fallback: boolean): boolean {
 }
 
 function getNonNegativeInteger(value: unknown, fallback: number): number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0
-    ? value
-    : fallback;
+  return isNonNegativeInteger(value) ? value : fallback;
+}
+
+function copyRecord(value: unknown): Record<string, unknown> {
+  return isRecord(value) ? { ...value } : {};
+}
+
+function hasText(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+async function writeKnowledgeSnapshot(
+  cwd: string,
+  workspace: XephaWorkspace,
+  pack: ContextPackV0,
+): Promise<string> {
+  const snapshotPath = resolveFromCwd(cwd, workspace.config.knowledge.index);
+  await mkdir(dirname(snapshotPath), { recursive: true });
+  await writeFile(snapshotPath, formatKnowledgeSnapshot(workspace, pack));
+
+  return workspace.config.knowledge.index;
+}
+
+function formatKnowledgeSnapshot(workspace: XephaWorkspace, pack: ContextPackV0): string {
+  const lines = [
+    "# Xepha Knowledge",
+    "",
+    "Read this file before asking an agent to work on this project.",
+    "It is the human-readable snapshot of the local Xepha store.",
+    "",
+    `Project: ${workspace.config.project.name}`,
+    `Generated: ${pack.generatedAt}`,
+    `Goal: ${pack.knowledge.goal}`,
+    `Database: ${workspace.config.storage.database}`,
+    "",
+    "## Summary",
+    "",
+    pack.knowledge.summary,
+    "",
+    "## Relevant Knowledge",
+    "",
+    ...formatList(pack.knowledge.relevantKnowledge),
+    "",
+    "## Recommended Next Steps",
+    "",
+    ...formatList(pack.knowledge.recommendedNextSteps),
+    "",
+    "## Evidence",
+    "",
+    ...formatList(
+      pack.sources.map((source) =>
+        source.eventId === undefined
+          ? `${source.label} (${source.uri})`
+          : `${source.label} -> ${source.eventId} (${source.uri})`,
+      ),
+    ),
+    "",
+  ];
+
+  return `${lines.join("\n")}\n`;
+}
+
+function formatList(values: readonly string[]): readonly string[] {
+  if (values.length === 0) {
+    return ["- None"];
+  }
+
+  return values.map((value) => `- ${value}`);
 }

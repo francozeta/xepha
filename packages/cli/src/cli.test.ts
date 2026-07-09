@@ -162,18 +162,17 @@ describe("CLI local loop", () => {
       ) as {
         readonly storage: { readonly database: string };
         readonly context: { readonly defaultGoal: string; readonly limit: number };
+        readonly knowledge: { readonly index: string };
       };
       const sources = JSON.parse(
         await readFile(join(workspacePath, ".xepha", "sources.json"), "utf8"),
       ) as {
-        readonly sources: readonly [
-          {
-            readonly id: string;
-            readonly type: string;
-            readonly path: string;
-            readonly enabled: boolean;
-          },
-        ];
+        readonly sources: ReadonlyArray<{
+          readonly id: string;
+          readonly type: string;
+          readonly path: string;
+          readonly enabled: boolean;
+        }>;
       };
       const rules = JSON.parse(
         await readFile(join(workspacePath, ".xepha", "rules", "project.json"), "utf8"),
@@ -189,19 +188,184 @@ describe("CLI local loop", () => {
       expect(result.stderr).toBe("");
       expect(result.stdout).toContain("Initialized .xepha");
       expect(config.storage.database).toBe(".xepha/knowledge.db");
+      expect(config.knowledge.index).toBe(".xepha/knowledge/index.md");
       expect(config.context.defaultGoal).toBe("continue the current work");
       expect(config.context.limit).toBe(5);
-      expect(sources.sources[0]).toMatchObject({
-        enabled: true,
-        id: "git",
-        path: ".",
-        type: "git",
-      });
+      expect(sources.sources).toContainEqual(
+        expect.objectContaining({
+          enabled: true,
+          id: "git",
+          path: ".",
+          type: "git",
+        }),
+      );
+      expect(sources.sources).toContainEqual(
+        expect.objectContaining({
+          enabled: true,
+          id: "project-context",
+          path: ".xepha/context",
+          type: "markdown",
+        }),
+      );
+      expect(
+        await readFile(join(workspacePath, ".xepha", "context", "project.md"), "utf8"),
+      ).toContain("# Project Context");
       expect(rules.rules).toContain("Prefer existing repository conventions.");
       expect(profile.include).toContain("knowledge");
       expect(localIgnore).toContain("knowledge.db");
+      expect(localIgnore).toContain("knowledge/");
       expect(localIgnore).toContain("cache/");
       expect(localIgnore).toContain("runs/");
+    });
+  });
+
+  it("upgrades an existing .xepha workspace without replacing configured sources", async () => {
+    await withTempDir("xepha-cli-init-upgrade-", async (workspacePath) => {
+      await mkdir(join(workspacePath, ".xepha"), { recursive: true });
+      await writeFile(
+        join(workspacePath, ".xepha", "config.json"),
+        JSON.stringify(
+          {
+            version: 1,
+            project: {
+              name: "existing-project",
+            },
+            storage: {
+              database: ".xepha/knowledge.db",
+            },
+            context: {
+              defaultGoal: "keep going",
+              limit: 3,
+            },
+            sources: {
+              file: ".xepha/sources.json",
+            },
+          },
+          null,
+          2,
+        ),
+      );
+      await writeFile(
+        join(workspacePath, ".xepha", "sources.json"),
+        JSON.stringify(
+          {
+            version: 1,
+            sources: [
+              {
+                enabled: false,
+                id: "git",
+                limit: 7,
+                path: ".",
+                type: "git",
+              },
+            ],
+          },
+          null,
+          2,
+        ),
+      );
+      await writeFile(join(workspacePath, ".xepha", ".gitignore"), "knowledge.db\n");
+
+      const result = await runCli(workspacePath, ["init"]);
+      const config = JSON.parse(
+        await readFile(join(workspacePath, ".xepha", "config.json"), "utf8"),
+      ) as {
+        readonly context: { readonly defaultGoal: string; readonly limit: number };
+        readonly knowledge: { readonly index: string };
+        readonly project: { readonly name: string };
+      };
+      const sources = JSON.parse(
+        await readFile(join(workspacePath, ".xepha", "sources.json"), "utf8"),
+      ) as {
+        readonly sources: ReadonlyArray<{
+          readonly id: string;
+          readonly enabled: boolean;
+          readonly limit?: number;
+          readonly type: string;
+        }>;
+      };
+      const localIgnore = await readFile(
+        join(workspacePath, ".xepha", ".gitignore"),
+        "utf8",
+      );
+
+      expect(result.stderr).toBe("");
+      expect(result.stdout).toContain("Updated .xepha/config.json");
+      expect(result.stdout).toContain("Updated .xepha/sources.json");
+      expect(config.project.name).toBe("existing-project");
+      expect(config.context.defaultGoal).toBe("keep going");
+      expect(config.context.limit).toBe(3);
+      expect(config.knowledge.index).toBe(".xepha/knowledge/index.md");
+      expect(sources.sources).toContainEqual(
+        expect.objectContaining({
+          enabled: false,
+          id: "git",
+          limit: 7,
+          type: "git",
+        }),
+      );
+      expect(sources.sources).toContainEqual(
+        expect.objectContaining({
+          enabled: true,
+          id: "project-context",
+          type: "markdown",
+        }),
+      );
+      expect(localIgnore).toContain("knowledge.db");
+      expect(localIgnore).toContain("knowledge/");
+      expect(localIgnore).toContain("cache/");
+      expect(
+        await readFile(join(workspacePath, ".xepha", "context", "project.md"), "utf8"),
+      ).toContain("# Project Context");
+    });
+  });
+
+  it("ingests markdown context and writes a readable knowledge snapshot", async () => {
+    await withTempDir("xepha-cli-readable-knowledge-", async (workspacePath) => {
+      await runCli(workspacePath, ["init"]);
+      await writeFile(
+        join(workspacePath, ".xepha", "sources.json"),
+        JSON.stringify(
+          {
+            version: 1,
+            sources: [
+              {
+                enabled: true,
+                id: "project-context",
+                path: ".xepha/context",
+                type: "markdown",
+              },
+            ],
+          },
+          null,
+          2,
+        ),
+      );
+      await writeFile(
+        join(workspacePath, ".xepha", "context", "handoff.md"),
+        [
+          "# Continue CLI readable knowledge",
+          "",
+          "Use readable snapshots so agents can resume work without opening SQLite.",
+        ].join("\n"),
+      );
+
+      const result = await runCli(workspacePath, []);
+      const snapshot = await readFile(
+        join(workspacePath, ".xepha", "knowledge", "index.md"),
+        "utf8",
+      );
+
+      expect(result.stderr).toBe("");
+      expect(result.stdout).toContain("Syncing markdown context");
+      expect(result.stdout).toContain("Knowledge: .xepha/knowledge/index.md");
+      expect(snapshot).toContain("# Xepha Knowledge");
+      expect(snapshot).toContain("Read this file before asking an agent to work");
+      expect(snapshot).toContain("Continue CLI readable knowledge");
+      expect(snapshot).toContain(
+        "Use readable snapshots so agents can resume work without opening SQLite.",
+      );
+      expect(snapshot).toContain(".xepha/context/handoff.md");
     });
   });
 
@@ -225,7 +389,7 @@ describe("CLI local loop", () => {
       expect(result.stderr).toBe("");
       expect(result.stdout).toContain("Syncing git history");
       expect(result.stdout).toContain("Goal: continue work on feat/cli-smart-workspace");
-      expect(result.stdout).toContain("Selected 1 knowledge item");
+      expect(result.stdout).toContain("Selected 2 knowledge items");
       expect(result.stdout).toContain("CLI: add smart workspace loop.");
       expect(result.stdout).toContain("Context ready");
       expect(result.stdout).not.toContain("version: xepha.context.v0");
@@ -250,7 +414,7 @@ describe("CLI local loop", () => {
       const result = await runCli(workspacePath, ["explain"]);
 
       expect(result.stderr).toBe("");
-      expect(result.stdout).toContain("Explaining 1 selected event");
+      expect(result.stdout).toContain("Explaining 2 selected events");
       expect(result.stdout).toContain(`Selected git:${hash}`);
       expect(result.stdout).toContain("matched title: cli");
     });

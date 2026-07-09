@@ -104,14 +104,19 @@ export function createCliProgram(options: CreateCliProgramOptions = {}): Command
       const result = await initializeWorkspace(cwd);
 
       writeIntro(stdout, "XEPHA init");
-      writeStep(stdout, "Created .xepha/config.json");
-      writeStep(stdout, "Created .xepha/sources.json");
-      writeStep(stdout, "Created .xepha/rules/project.json");
-      writeStep(stdout, "Created .xepha/context/profile.json");
+      for (const path of result.createdFiles) {
+        writeStep(stdout, `Created ${path}`);
+      }
+      for (const path of result.updatedFiles) {
+        writeStep(stdout, `Updated ${path}`);
+      }
+      if (result.createdFiles.length === 0 && result.updatedFiles.length === 0) {
+        writeStep(stdout, ".xepha config is already current");
+      }
       writeStep(stdout, "Runtime data stays local in .xepha/knowledge.db");
       writeSuccess(
         stdout,
-        result.createdFiles.length === 0
+        result.createdFiles.length === 0 && result.updatedFiles.length === 0
           ? ".xepha already initialized"
           : "Initialized .xepha",
       );
@@ -320,6 +325,8 @@ async function runSmartWorkspaceLoop(
 
   writeWarnings(stdout, syncResult.warnings);
   writeHumanContext(stdout, contextResult.pack);
+  writeStep(stdout, `Knowledge: ${contextResult.snapshotPath}`);
+  writeStep(stdout, `Database: ${workspace.config.storage.database}`);
   writeSuccess(stdout, "Context ready");
   writeOutro(stdout);
 }

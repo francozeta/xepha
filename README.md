@@ -54,14 +54,9 @@ Useful commands:
 
 ```sh
 pnpm xepha doctor
-pnpm lint
-pnpm check-types
-pnpm test
-pnpm build
-pnpm --filter @xepha/cli dev -- doctor
-pnpm --filter @xepha/api dev
-pnpm --filter @xepha/playground dev
-pnpm --filter @xepha/website dev
+pnpm xepha ingest git --repo .
+pnpm xepha context "continue the current work"
+pnpm check
 ```
 
 CLI usage is documented in [docs/cli.md](docs/cli.md).

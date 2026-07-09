@@ -37,6 +37,16 @@ const protocolDecision = defineKnowledgeEvent({
   ],
 });
 
+const cliCommit = defineKnowledgeEvent({
+  id: "git:abc123",
+  kind: "commit",
+  title: "feat(cli): explain context ranking (#16)",
+  summary:
+    "Commit abc123 by francozeta touched 5 files: packages/cli/src/cli.ts and 4 more.",
+  occurredAt: "2026-07-07T14:22:13.000Z",
+  tags: ["git", "commit", "file:packages/cli/src/cli.ts"],
+});
+
 describe("createContextPackV0", () => {
   it("creates a bounded pack with event source references", () => {
     const pack = createContextPackV0({
@@ -54,6 +64,18 @@ describe("createContextPackV0", () => {
       generatedAt: "2026-07-06T14:00:00.000Z",
       context:
         "Selected 1 knowledge event(s) for the requested task: continue the SQLite memory implementation.",
+      knowledge: {
+        goal: "continue the SQLite memory implementation",
+        summary:
+          "Selected 1 evidence-backed item for continue the SQLite memory implementation. Most relevant: Use SQLite for local memory.",
+        relevantKnowledge: [
+          "Use SQLite for local memory: Persist project history locally before adding remote services.",
+        ],
+        recommendedNextSteps: [
+          "Review the selected evidence before changing shared packages.",
+          "Update docs and tests alongside behavior changes.",
+        ],
+      },
       confidence: 0.74,
       warnings: ["Only one event was selected."],
       events: [
@@ -78,12 +100,32 @@ describe("createContextPackV0", () => {
     });
   });
 
+  it("derives knowledge from commit titles instead of raw commit summaries", () => {
+    const pack = createContextPackV0({
+      task: "improve cli dx",
+      events: [cliCommit],
+      generatedAt: "2026-07-07T15:00:00.000Z",
+    });
+
+    expect(pack.knowledge.summary).toContain(
+      "Most relevant: CLI: explain context ranking.",
+    );
+    expect(pack.knowledge.relevantKnowledge).toEqual(["CLI: explain context ranking."]);
+    expect(pack.knowledge.relevantKnowledge[0]).not.toContain("Commit abc123");
+  });
+
   it("rejects unknown top-level fields", () => {
     const result = contextPackV0Schema.safeParse({
       version: CONTEXT_PACK_VERSION,
       task: "ship protocol",
       generatedAt: "2026-07-06T14:00:00.000Z",
       context: "Use validated context packs.",
+      knowledge: {
+        goal: "ship protocol",
+        summary: "Use validated context packs.",
+        relevantKnowledge: [],
+        recommendedNextSteps: [],
+      },
       events: [],
       sources: [],
       confidence: 1,
@@ -100,6 +142,12 @@ describe("createContextPackV0", () => {
       task: "ship protocol",
       generatedAt: "2026-07-06T14:00:00.000Z",
       context: "Use validated context packs.",
+      knowledge: {
+        goal: "ship protocol",
+        summary: "Use validated context packs.",
+        relevantKnowledge: [],
+        recommendedNextSteps: [],
+      },
       events: [],
       sources: [],
       confidence: 1.1,
@@ -115,6 +163,12 @@ describe("createContextPackV0", () => {
       task: "ship protocol",
       generatedAt: "July 6, 2026",
       context: "Use validated context packs.",
+      knowledge: {
+        goal: "ship protocol",
+        summary: "Use validated context packs.",
+        relevantKnowledge: [],
+        recommendedNextSteps: [],
+      },
       events: [],
       sources: [],
       confidence: 1,
@@ -148,6 +202,7 @@ describe("createContextPackV0", () => {
         "task",
         "generatedAt",
         "context",
+        "knowledge",
         "events",
         "sources",
         "confidence",

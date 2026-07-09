@@ -22,11 +22,19 @@ export const contextPackEventSchema = z.strictObject({
   sourceIds: z.array(z.string().min(1)),
 });
 
+export const contextPackKnowledgeSchema = z.strictObject({
+  goal: z.string().min(1),
+  summary: z.string().min(1),
+  relevantKnowledge: z.array(z.string().min(1)),
+  recommendedNextSteps: z.array(z.string().min(1)),
+});
+
 export const contextPackV0Schema = z.strictObject({
   version: z.literal(CONTEXT_PACK_VERSION),
   task: z.string().min(1),
   generatedAt: isoDateTimeSchema,
   context: z.string().min(1),
+  knowledge: contextPackKnowledgeSchema,
   events: z.array(contextPackEventSchema),
   sources: z.array(contextPackSourceSchema),
   confidence: z.number().min(0).max(1),
@@ -37,6 +45,7 @@ export const contextPackV0JsonSchema = z.toJSONSchema(contextPackV0Schema);
 
 export type ContextPackSource = z.infer<typeof contextPackSourceSchema>;
 export type ContextPackEvent = z.infer<typeof contextPackEventSchema>;
+export type ContextPackKnowledge = z.infer<typeof contextPackKnowledgeSchema>;
 export type ContextPackV0 = z.infer<typeof contextPackV0Schema>;
 
 export interface CreateContextPackV0Input {
@@ -44,6 +53,7 @@ export interface CreateContextPackV0Input {
   readonly events: readonly KnowledgeEvent[];
   readonly generatedAt?: string;
   readonly context?: string;
+  readonly knowledge?: ContextPackKnowledge;
   readonly confidence?: number;
   readonly warnings?: readonly string[];
   readonly limit?: number;
@@ -84,6 +94,7 @@ export function createContextPackV0(input: CreateContextPackV0Input): ContextPac
     context:
       input.context ??
       `Selected ${events.length} knowledge event(s) for the requested task: ${input.task}.`,
+    knowledge: input.knowledge ?? buildContextKnowledge(input.task, events),
     events,
     sources,
     confidence: input.confidence ?? 1,
@@ -91,6 +102,83 @@ export function createContextPackV0(input: CreateContextPackV0Input): ContextPac
   };
 
   return contextPackV0Schema.parse(pack);
+}
+
+function buildContextKnowledge(
+  task: string,
+  events: readonly ContextPackEvent[],
+): ContextPackKnowledge {
+  const relevantKnowledge = events.map(formatRelevantKnowledge);
+  const itemLabel = events.length === 1 ? "item" : "items";
+  const mostRelevant = events[0] ? formatKnowledgeHeadline(events[0]) : undefined;
+
+  return {
+    goal: task,
+    summary:
+      events.length === 0
+        ? `No evidence-backed knowledge was selected for ${task}.`
+        : `Selected ${events.length} evidence-backed ${itemLabel} for ${task}. Most relevant: ${mostRelevant}.`,
+    relevantKnowledge,
+    recommendedNextSteps: [
+      "Review the selected evidence before changing shared packages.",
+      "Update docs and tests alongside behavior changes.",
+    ],
+  };
+}
+
+function formatRelevantKnowledge(event: ContextPackEvent): string {
+  if (event.kind === "commit") {
+    return toSentence(formatKnowledgeHeadline(event));
+  }
+
+  return `${event.title}: ${event.summary}`;
+}
+
+function formatKnowledgeHeadline(event: ContextPackEvent): string {
+  const parsedTitle = parseConventionalTitle(event.title);
+
+  if (!parsedTitle) {
+    return stripPullRequestSuffix(event.title);
+  }
+
+  if (!parsedTitle.scope) {
+    return parsedTitle.subject;
+  }
+
+  return `${parsedTitle.scope.toUpperCase()}: ${parsedTitle.subject}`;
+}
+
+function parseConventionalTitle(
+  title: string,
+): { readonly scope?: string; readonly subject: string } | undefined {
+  const match = /^(?<type>[a-z]+)(?:\((?<scope>[^)]+)\))?: (?<subject>.+)$/u.exec(
+    stripPullRequestSuffix(title),
+  );
+
+  if (!match?.groups?.subject) {
+    return undefined;
+  }
+
+  return {
+    scope: match.groups.scope,
+    subject: match.groups.subject,
+  };
+}
+
+function stripPullRequestSuffix(title: string): string {
+  return title.replace(/\s+\(#\d+\)$/u, "");
+}
+
+function toSentence(value: string): string {
+  const trimmed = value.trim();
+
+  if (trimmed.length === 0) {
+    return trimmed;
+  }
+
+  const capitalized = `${trimmed[0]?.toUpperCase()}${trimmed.slice(1)}`;
+
+  return /[.!?]$/u.test(capitalized) ? capitalized : `${capitalized}.`;
 }
 
 function getEventLimit(limit: number | undefined): number {

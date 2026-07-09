@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
-import { defineKnowledgeEvent } from "@xepha/core";
+import { XEPHA_PROJECT, defineKnowledgeEvent } from "@xepha/core";
 import { SQLiteKnowledgeStore } from "@xepha/memory";
 import { createCliProgram } from "./cli.js";
 
@@ -158,7 +158,7 @@ describe("CLI local loop", () => {
       const result = await runCli(workspacePath, ["-v"]);
 
       expect(result.stderr).toBe("");
-      expect(result.stdout.trim()).toBe("0.3.0");
+      expect(result.stdout.trim()).toBe(XEPHA_PROJECT.version);
     });
   });
 

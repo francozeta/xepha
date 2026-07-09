@@ -53,9 +53,10 @@ pnpm dev
 Useful commands:
 
 ```sh
-pnpm xepha doctor
-pnpm xepha ingest git --repo .
-pnpm xepha context "continue the current work"
+pnpm xepha init
+pnpm xepha
+pnpm xepha sync
+pnpm xepha explain
 pnpm check
 ```
 

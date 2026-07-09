@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.3.1](https://github.com/francozeta/xepha/compare/v0.3.0...v0.3.1) (2026-07-09)
+
+
+### Features
+
+* **cli:** improve context developer experience ([#16](https://github.com/francozeta/xepha/issues/16)) ([da33c01](https://github.com/francozeta/xepha/commit/da33c0119612796abe318f04463d9d2d0c45b77a))
+* **graph:** add simple event ranking ([#14](https://github.com/francozeta/xepha/issues/14)) ([82f28af](https://github.com/francozeta/xepha/commit/82f28af90b4319152a00fecc65a7aec29fe0d5ce))
+* **protocol:** add derived knowledge summary ([#18](https://github.com/francozeta/xepha/issues/18)) ([26f7274](https://github.com/francozeta/xepha/commit/26f7274af8044776e48d1cf2b45dfb6047032ae4))
+
+
+### Bug Fixes
+
+* **cli:** make local usage reliable ([#15](https://github.com/francozeta/xepha/issues/15)) ([b6a7f03](https://github.com/francozeta/xepha/commit/b6a7f03f4c052a2a66c6518f2bb800d0f9164e04))
+* **repo:** format changelog for quality checks ([19d15b1](https://github.com/francozeta/xepha/commit/19d15b1d08fe4c27fa77ea4dfcf9978edfdc324a))
+
 ## [0.3.0](https://github.com/francozeta/xepha/compare/v0.2.0...v0.3.0) (2026-07-07)
 
 ### Features

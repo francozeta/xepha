@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/francozeta/xepha/compare/v0.3.1...v0.3.2) (2026-07-09)
+
+
+### Features
+
+* **cli:** add smart workspace loop ([#20](https://github.com/francozeta/xepha/issues/20)) ([2ff8c53](https://github.com/francozeta/xepha/commit/2ff8c5349b1b48652cab060d605b78dfa1dcf295))
+
 ## [0.3.1](https://github.com/francozeta/xepha/compare/v0.3.0...v0.3.1) (2026-07-09)
 
 ### Features

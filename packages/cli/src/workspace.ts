@@ -113,7 +113,6 @@ export async function initializeWorkspace(cwd: string): Promise<{
   const files = [
     [WORKSPACE_RULES_PATH, createDefaultWorkspaceRules()],
     [WORKSPACE_CONTEXT_PROFILE_PATH, createDefaultContextProfile()],
-    [WORKSPACE_PROJECT_CONTEXT_PATH, createDefaultProjectContext(cwd)],
   ] as const;
 
   for (const [path, contents] of files) {
@@ -122,6 +121,18 @@ export async function initializeWorkspace(cwd: string): Promise<{
     if (created) {
       createdFiles.push(path);
     }
+  }
+
+  if (
+    await writeTextFileIfMissing(
+      cwd,
+      WORKSPACE_PROJECT_CONTEXT_PATH,
+      createDefaultProjectContext(cwd),
+    )
+  ) {
+    createdFiles.push(WORKSPACE_PROJECT_CONTEXT_PATH);
+  } else if (await ensureProjectContextReadable(cwd)) {
+    updatedFiles.push(WORKSPACE_PROJECT_CONTEXT_PATH);
   }
 
   if (await writeTextFileIfMissing(cwd, WORKSPACE_LOCAL_IGNORE_PATH, getLocalIgnore())) {
@@ -585,6 +596,33 @@ async function ensureLocalIgnoreDefaults(cwd: string): Promise<boolean> {
   await writeFile(ignorePath, `${normalizedContents}${missingLines.join("\n")}\n`);
 
   return true;
+}
+
+async function ensureProjectContextReadable(cwd: string): Promise<boolean> {
+  const projectContextPath = resolveFromCwd(cwd, WORKSPACE_PROJECT_CONTEXT_PATH);
+  const contents = await readFile(projectContextPath, "utf8");
+  const trimmedContents = contents.trim();
+
+  if (!trimmedContents.startsWith('"')) {
+    return false;
+  }
+
+  try {
+    const decoded = JSON.parse(trimmedContents) as unknown;
+
+    if (typeof decoded !== "string" || !decoded.startsWith("#")) {
+      return false;
+    }
+
+    await writeFile(
+      projectContextPath,
+      decoded.endsWith("\n") ? decoded : `${decoded}\n`,
+    );
+
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function readJsonFile(path: string): Promise<unknown> {

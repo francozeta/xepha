@@ -9,8 +9,10 @@ import {
 } from "@xepha/protocol";
 import {
   type CliWritable,
+  writeDetail,
   writeIntro,
   writeOutro,
+  writeSpacer,
   writeStep,
   writeSuccess,
   writeWordmark,
@@ -319,15 +321,21 @@ async function runSmartWorkspaceLoop(
   stdout: CliWritable,
   workspace: XephaWorkspace,
 ): Promise<void> {
+  const startedAt = Date.now();
+
   writeIntro(stdout, "XEPHA");
+  writeStep(stdout, "Preparing workspace");
   const syncResult = await syncWorkspaceSources(cwd, stdout, workspace);
   const contextResult = await buildWorkspaceContext(cwd, workspace);
 
   writeWarnings(stdout, syncResult.warnings);
+  writeSpacer(stdout);
   writeHumanContext(stdout, contextResult.pack);
-  writeStep(stdout, `Knowledge: ${contextResult.snapshotPath}`);
-  writeStep(stdout, `Database: ${workspace.config.storage.database}`);
-  writeSuccess(stdout, "Context ready");
+  writeSpacer(stdout);
+  writeStep(stdout, "Output");
+  writeDetail(stdout, `Knowledge: ${contextResult.snapshotPath}`);
+  writeDetail(stdout, `Database: ${workspace.config.storage.database}`);
+  writeSuccess(stdout, `Context ready in ${formatDuration(Date.now() - startedAt)}`);
   writeOutro(stdout);
 }
 
@@ -349,15 +357,16 @@ function writeHumanContext(stdout: CliWritable, pack: ContextPackV0): void {
   const knowledgeCount = pack.knowledge.relevantKnowledge.length;
   const itemLabel = knowledgeCount === 1 ? "item" : "items";
 
-  writeStep(stdout, `Goal: ${pack.knowledge.goal}`);
-  writeStep(stdout, `Selected ${knowledgeCount} knowledge ${itemLabel}`);
+  writeStep(stdout, "Knowledge");
+  writeDetail(stdout, `Goal: ${pack.knowledge.goal}`);
+  writeDetail(stdout, `Selected ${knowledgeCount} knowledge ${itemLabel}`);
 
   for (const item of pack.knowledge.relevantKnowledge) {
-    writeStep(stdout, item);
+    writeDetail(stdout, `- ${item}`);
   }
 
   for (const warning of pack.warnings) {
-    writeStep(stdout, warning);
+    writeDetail(stdout, warning);
   }
 }
 
@@ -422,4 +431,12 @@ function parseContextFormat(value: string): "json" | "yaml" {
   }
 
   throw new Error("Expected format to be yaml or json.");
+}
+
+function formatDuration(durationMs: number): string {
+  if (durationMs < 1000) {
+    return `${durationMs}ms`;
+  }
+
+  return `${(durationMs / 1000).toFixed(1)}s`;
 }

@@ -25,6 +25,14 @@ export function writeStep(output: CliWritable, message: string): void {
   output.write(`${renderInkText(`◇  ${message}`)}\n`);
 }
 
+export function writeDetail(output: CliWritable, message: string): void {
+  output.write(`${renderInkText(`│  ${message}`)}\n`);
+}
+
+export function writeSpacer(output: CliWritable): void {
+  output.write(`${renderInkText("│")}\n`);
+}
+
 export function writeSuccess(output: CliWritable, message: string): void {
   output.write(`${renderInkText(`◆  ${message}`)}\n`);
 }

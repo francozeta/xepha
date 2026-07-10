@@ -209,7 +209,7 @@ describe("CLI local loop", () => {
       );
       expect(
         await readFile(join(workspacePath, ".xepha", "context", "project.md"), "utf8"),
-      ).toContain("# Project Context");
+      ).toMatch(/^# Project Context\n\nProject: /u);
       expect(rules.rules).toContain("Prefer existing repository conventions.");
       expect(profile.include).toContain("knowledge");
       expect(localIgnore).toContain("knowledge.db");
@@ -265,6 +265,11 @@ describe("CLI local loop", () => {
         ),
       );
       await writeFile(join(workspacePath, ".xepha", ".gitignore"), "knowledge.db\n");
+      await mkdir(join(workspacePath, ".xepha", "context"), { recursive: true });
+      await writeFile(
+        join(workspacePath, ".xepha", "context", "project.md"),
+        JSON.stringify("# Project Context\n\nProject: existing-project\n"),
+      );
 
       const result = await runCli(workspacePath, ["init"]);
       const config = JSON.parse(
@@ -292,6 +297,7 @@ describe("CLI local loop", () => {
       expect(result.stderr).toBe("");
       expect(result.stdout).toContain("Updated .xepha/config.json");
       expect(result.stdout).toContain("Updated .xepha/sources.json");
+      expect(result.stdout).toContain("Updated .xepha/context/project.md");
       expect(config.project.name).toBe("existing-project");
       expect(config.context.defaultGoal).toBe("keep going");
       expect(config.context.limit).toBe(3);
@@ -316,7 +322,7 @@ describe("CLI local loop", () => {
       expect(localIgnore).toContain("cache/");
       expect(
         await readFile(join(workspacePath, ".xepha", "context", "project.md"), "utf8"),
-      ).toContain("# Project Context");
+      ).toMatch(/^# Project Context\n\nProject: existing-project\n/u);
     });
   });
 

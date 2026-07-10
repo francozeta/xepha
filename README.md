@@ -18,7 +18,7 @@ The first goal is to build a local MVP that can:
 - ingest project events such as decisions, commits, and discussions;
 - store them locally;
 - link related events;
-- produce small context packs for humans or tools.
+- produce readable context snapshots for humans or tools.
 
 The project is early. Most packages currently contain boundaries and starter
 contracts, not complete implementations.
@@ -59,6 +59,9 @@ pnpm xepha sync
 pnpm xepha explain
 pnpm check
 ```
+
+`pnpm xepha` stores runtime data in `.xepha/knowledge.db` and writes a readable
+snapshot to `.xepha/knowledge/index.md`.
 
 CLI usage is documented in [docs/cli.md](docs/cli.md).
 

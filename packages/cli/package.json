@@ -28,10 +28,13 @@
     "@xepha/graph": "workspace:*",
     "@xepha/memory": "workspace:*",
     "@xepha/protocol": "workspace:*",
-    "commander": "^14.0.2"
+    "commander": "^14.0.2",
+    "ink": "7.1.0",
+    "react": "19.2.0"
   },
   "devDependencies": {
     "@types/node": "^22.15.3",
+    "@types/react": "19.2.2",
     "@xepha/eslint-config": "workspace:*",
     "@xepha/typescript-config": "workspace:*",
     "eslint": "^9.39.1",

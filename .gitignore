@@ -24,6 +24,7 @@ coverage
 # Xepha local runtime data
 .xepha/knowledge.db
 .xepha/knowledge.db-*
+.xepha/knowledge/
 .xepha/cache/
 .xepha/runs/
 .xepha/last-context.json

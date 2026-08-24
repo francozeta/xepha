@@ -28,6 +28,9 @@ builds the CLI first.
     project.json
   context/
     profile.json
+    project.md
+  knowledge/
+    index.md
 ```
 
 `config.json`, `sources.json`, `rules/`, and `context/` are intended to be read
@@ -35,8 +38,25 @@ and edited. Runtime files such as `knowledge.db`, `cache/`, and `runs/` stay
 local.
 
 `pnpm xepha` syncs the configured sources, infers the current work from the
-workspace, and prints a short human summary. `pnpm xepha explain` shows why the
-current evidence was selected.
+workspace, writes `.xepha/knowledge/index.md`, and prints a short human summary.
+`pnpm xepha explain` shows why the current evidence was selected.
+
+`knowledge.db` is the local SQLite store. It is not meant to be opened by hand.
+Use `.xepha/knowledge/index.md` when you want the readable snapshot for humans
+or agents.
+
+Markdown files under `.xepha/context/` are for durable project notes. YAML and
+JSON context packs are for tools that need a stable protocol. Keep both: the
+Markdown source is easier to review by hand, while the protocol output is easier
+to consume from another runtime.
+
+The default sources are:
+
+- `git`, for recent local commit history;
+- `markdown`, for durable context written under `.xepha/context/`.
+
+Use `.xepha/context/project.md` for notes that should survive agent sessions,
+context compaction, or handoffs between tools.
 
 ## Advanced commands
 
@@ -59,10 +79,18 @@ pnpm --silent xepha context "resume the project" --db .xepha/knowledge.db --expl
 ```
 
 The default database path is `.xepha/knowledge.db`. It is a local SQLite file.
+The default readable snapshot path is `.xepha/knowledge/index.md`.
 
 Context packs include both raw evidence and a small derived knowledge summary.
 The `events` section is still useful for debugging, but consumers should prefer
 the `knowledge` section first.
+
+## CLI UX direction
+
+The CLI currently uses Commander for command parsing and Ink for renderable
+terminal output. Clack is a good fit for future interactive flows such as
+`xepha init --wizard` or `xepha source add`. Avoid migrating to a larger CLI
+framework until Xepha needs runtime plugins or a much larger command surface.
 
 To inspect another local repository, pass its path with `--repo` and write the
 database wherever you want:
